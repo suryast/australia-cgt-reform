@@ -273,7 +273,7 @@ export default function HomePageClient() {
   return (
     <main className="min-h-screen bg-bg">
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
-        <header className="mb-6 card-brutal p-4 sm:p-6 bg-main">
+        <header className="mb-6 card-brutal card-main p-4 sm:p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-black">
@@ -386,7 +386,7 @@ export default function HomePageClient() {
             </div>
           </div>
 
-          <div className="card-brutal p-4 sm:p-6 bg-purple">
+          <div className="card-brutal card-purple p-4 sm:p-6">
             <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide text-black">
               Outcome Snapshot
             </h2>
@@ -437,7 +437,7 @@ export default function HomePageClient() {
             </div>
           </div>
 
-          <div className="card-brutal p-4 sm:p-6 bg-bg-alt">
+          <div className="card-brutal card-bg-alt p-4 sm:p-6">
             <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide">
               Headline Readout
             </h2>
@@ -475,7 +475,7 @@ export default function HomePageClient() {
         </section>
 
         <section className="mb-6">
-          <div className="card-brutal p-4 sm:p-6 bg-main">
+          <div className="card-brutal card-main p-4 sm:p-6">
             <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide text-black">
               What The Official Data Says
             </h2>
@@ -529,11 +529,11 @@ export default function HomePageClient() {
         </section>
 
         <section className="mb-6">
-          <div className="card-brutal p-4 sm:p-6 bg-purple">
+          <div className="card-brutal card-purple p-4 sm:p-6">
             <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide text-black">
               Which Claims Matter Most?
             </h2>
-            <div className="mt-3 card-brutal bg-warning p-4">
+            <div className="mt-3 card-brutal card-warning p-4">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="badge-brutal badge-danger text-[10px] sm:text-xs">Claim-check lens</span>
               </div>
@@ -547,20 +547,20 @@ export default function HomePageClient() {
               <div className="min-w-[760px]">
                 <div className="mb-2 grid grid-cols-[140px_1fr_1fr] gap-3">
                   <div />
-                  <div className="card-brutal bg-danger p-2 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
+                  <div className="card-brutal card-danger p-2 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
                     Weak Evidence
                   </div>
-                  <div className="card-brutal bg-success p-2 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
+                  <div className="card-brutal card-success p-2 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
                     Strong Evidence
                   </div>
                 </div>
 
                 <div className="grid grid-cols-[140px_1fr_1fr] gap-3">
-                  <div className="flex items-center justify-center card-brutal bg-purple p-3 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
+                  <div className="flex items-center justify-center card-brutal card-purple p-3 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
                     High Policy Importance
                   </div>
 
-                  <div className="card-brutal bg-warning p-4">
+                  <div className="card-brutal card-warning p-4">
                     <p className="text-sm font-black">Important but unresolved</p>
                     <ul className="mt-3 space-y-2 text-xs sm:text-sm">
                       <li>Founder exits and startup treatment under any replacement regime.</li>
@@ -569,7 +569,7 @@ export default function HomePageClient() {
                     </ul>
                   </div>
 
-                  <div className="card-brutal bg-success p-4">
+                  <div className="card-brutal card-success p-4">
                     <p className="text-sm font-black">Act on this evidence</p>
                     <ul className="mt-3 space-y-2 text-xs sm:text-sm">
                       <li>Top `10%` of income earners receive `82%` of the CGT discount benefit.</li>
@@ -578,11 +578,11 @@ export default function HomePageClient() {
                     </ul>
                   </div>
 
-                  <div className="flex items-center justify-center card-brutal bg-main p-3 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
+                  <div className="flex items-center justify-center card-brutal card-main p-3 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
                     Lower Policy Importance
                   </div>
 
-                  <div className="card-brutal bg-danger p-4">
+                  <div className="card-brutal card-danger p-4">
                     <p className="text-sm font-black">Rhetorical overreach</p>
                     <ul className="mt-3 space-y-2 text-xs sm:text-sm">
                       <li>Sweeping claims that young Australians are the main direct beneficiaries of the current discount.</li>
@@ -590,7 +590,7 @@ export default function HomePageClient() {
                     </ul>
                   </div>
 
-                  <div className="card-brutal bg-main p-4">
+                  <div className="card-brutal card-main p-4">
                     <p className="text-sm font-black">Interesting, but secondary</p>
                     <ul className="mt-3 space-y-2 text-xs sm:text-sm">
                       <li>Asset-class splits across property, shares, trusts and other assets.</li>
@@ -662,7 +662,7 @@ export default function HomePageClient() {
             </div>
           </div>
 
-          <div className="card-brutal p-4 sm:p-6 bg-main">
+          <div className="card-brutal card-main p-4 sm:p-6">
             <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide text-black">
               References
             </h2>

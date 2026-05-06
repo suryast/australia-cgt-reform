@@ -113,6 +113,30 @@ body {
   box-shadow: var(--shadow-brutal);
 }
 
+.card-main {
+  background-color: var(--main);
+}
+
+.card-danger {
+  background-color: var(--danger);
+}
+
+.card-warning {
+  background-color: var(--warning);
+}
+
+.card-success {
+  background-color: var(--success);
+}
+
+.card-purple {
+  background-color: var(--purple);
+}
+
+.card-bg-alt {
+  background-color: var(--bg-alt);
+}
+
 .badge-brutal,
 .badge-danger,
 .badge-warning,
