@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://australia-cgt-reform-calculator.setiyaputra.me/sitemap.xml

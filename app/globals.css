@@ -1,0 +1,187 @@
+@import "tailwindcss";
+
+:root {
+  --white: #ffffff;
+  --black: #000000;
+  --main: #88d4ee;
+  --main-dark: #5bc0de;
+  --bg: #f0f8fc;
+  --bg-alt: #e8f4fa;
+  --danger: #ee8888;
+  --danger-dark: #dc6666;
+  --warning: #fed170;
+  --warning-dark: #f5b942;
+  --success: #97ee88;
+  --success-dark: #6bd65a;
+  --purple: #b6ace4;
+  --purple-dark: #9a8dd4;
+  --shadow-brutal: 4px 4px 0px 0px var(--black);
+  --shadow-brutal-sm: 2px 2px 0px 0px var(--black);
+  --shadow-brutal-lg: 6px 6px 0px 0px var(--black);
+  --radius-base: 5px;
+  --background: var(--bg);
+  --foreground: var(--black);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-black: var(--black);
+  --color-white: var(--white);
+  --color-main: var(--main);
+  --color-main-dark: var(--main-dark);
+  --color-bg: var(--bg);
+  --color-bg-alt: var(--bg-alt);
+  --color-danger: var(--danger);
+  --color-danger-dark: var(--danger-dark);
+  --color-warning: var(--warning);
+  --color-warning-dark: var(--warning-dark);
+  --color-success: var(--success);
+  --color-success-dark: var(--success-dark);
+  --color-purple: var(--purple);
+  --color-purple-dark: var(--purple-dark);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html.dark,
+:root.dark {
+  --bg: #1a1a2e;
+  --bg-alt: #16213e;
+  --white: #1e1e2f;
+  --black: #ffffff;
+  --main: #5bc0de;
+  --danger: #ff6b6b;
+  --warning: #ffd93d;
+  --success: #6bcb77;
+  --purple: #a78bfa;
+  --shadow-brutal: 4px 4px 0px 0px rgba(255,255,255,0.25);
+  --shadow-brutal-sm: 2px 2px 0px 0px rgba(255,255,255,0.25);
+  --shadow-brutal-lg: 6px 6px 0px 0px rgba(255,255,255,0.25);
+  --background: var(--bg);
+  --foreground: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not(.light),
+  :root:not(.light) {
+    --bg: #1a1a2e;
+    --bg-alt: #16213e;
+    --white: #1e1e2f;
+    --black: #ffffff;
+    --main: #5bc0de;
+    --danger: #ff6b6b;
+    --warning: #ffd93d;
+    --success: #6bcb77;
+    --purple: #a78bfa;
+    --shadow-brutal: 4px 4px 0px 0px rgba(255,255,255,0.25);
+    --shadow-brutal-sm: 2px 2px 0px 0px rgba(255,255,255,0.25);
+    --shadow-brutal-lg: 6px 6px 0px 0px rgba(255,255,255,0.25);
+    --background: var(--bg);
+    --foreground: #ffffff;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+.text-foreground-muted {
+  color: var(--foreground);
+  opacity: 0.7;
+}
+
+.text-foreground-faint {
+  color: var(--foreground);
+  opacity: 0.5;
+}
+
+.shadow-brutal {
+  box-shadow: var(--shadow-brutal);
+}
+
+.shadow-brutal-sm {
+  box-shadow: var(--shadow-brutal-sm);
+}
+
+.card-brutal {
+  background-color: var(--white);
+  border: 2px solid var(--black);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-brutal);
+}
+
+.badge-brutal,
+.badge-danger,
+.badge-warning,
+.badge-success,
+.badge-main,
+.badge-purple {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 2px solid var(--black);
+  border-radius: 9999px;
+  box-shadow: 2px 2px 0px 0px var(--black);
+  background-color: var(--white);
+  color: var(--black);
+}
+
+.badge-danger {
+  background-color: var(--danger);
+}
+
+.badge-warning {
+  background-color: var(--warning);
+}
+
+.badge-success {
+  background-color: var(--success);
+}
+
+.badge-main {
+  background-color: var(--main);
+}
+
+.badge-purple {
+  background-color: var(--purple);
+}
+
+.btn-brutal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  font-weight: 700;
+  background-color: var(--main);
+  color: var(--black);
+  border: 2px solid var(--black);
+  border-radius: var(--radius-base);
+  box-shadow: var(--shadow-brutal);
+  transition: transform 0.1s, box-shadow 0.1s;
+  cursor: pointer;
+}
+
+.btn-brutal:hover {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.btn-brutal-neutral {
+  background-color: var(--white);
+}
+
+.link-brutal {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.link-brutal:hover {
+  opacity: 0.7;
+}
