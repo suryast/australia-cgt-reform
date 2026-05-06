@@ -556,7 +556,7 @@ export default function HomePageClient() {
                 </div>
 
                 <div className="grid grid-cols-[140px_1fr_1fr] gap-3">
-                  <div className="flex items-center justify-center card-brutal card-purple p-3 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
+                  <div className="flex items-center justify-center card-brutal card-success p-3 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
                     High Policy Importance
                   </div>
 
@@ -578,7 +578,7 @@ export default function HomePageClient() {
                     </ul>
                   </div>
 
-                  <div className="flex items-center justify-center card-brutal card-main p-3 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
+                  <div className="flex items-center justify-center card-brutal card-danger p-3 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
                     Lower Policy Importance
                   </div>
 

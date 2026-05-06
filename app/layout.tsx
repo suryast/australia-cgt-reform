@@ -28,9 +28,9 @@ export const metadata: Metadata = {
     url: "https://australia-cgt-reform-calculator.setiyaputra.me",
     images: [
       {
-        url: "/og-preview.svg",
-        width: 1200,
-        height: 630,
+        url: "/og-preview.png",
+        width: 1731,
+        height: 909,
         alt: "CGT Compounding Stress Test",
       },
     ],
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     title: "CGT Compounding Calculator",
     description:
       "Stress-test long-term capital gains outcomes under different tax treatments.",
-    images: ["/og-preview.svg"],
+    images: ["/og-preview.png"],
   },
 };
 
