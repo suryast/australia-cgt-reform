@@ -186,6 +186,97 @@ const REFERENCE_LINKS = [
   },
 ]
 
+const CLAIM_CHECKS = [
+  {
+    title: 'Founder exit claim',
+    verdict: 'Upper-bound example, not the representative founder case',
+    tone: 'warning' as const,
+    body:
+      'A “$225k worse off on a $1m business sale” result broadly matches a founder on the top marginal rate with no Subdivision 152 relief. But Division 152 can materially change the result for eligible active business assets.',
+    bullets: [
+      'The calculator currently does not model the 50% active asset reduction, the retirement exemption, the 15-year exemption, or the rollover.',
+      'For an eligible active asset, the general 50% discount can interact with the small-business concessions, so a founder may be nowhere near the simple $235k extra-tax path.',
+      'That means founder examples should be framed as “without Division 152 concessions” unless the scenario explicitly proves they do not apply.',
+    ],
+    sources: [
+      {
+        label: 'ATO small business CGT concessions',
+        href: 'https://www.ato.gov.au/law/view/view.htm?docid=SAV/CGTCONCESSIONS/00001',
+      },
+      {
+        label: 'AustLII Subdivision 152-D',
+        href: 'https://classic.austlii.edu.au/au/legis/cth/consol_act/itaa1997240/s152.300.html',
+      },
+    ],
+  },
+  {
+    title: 'ETF and property headline losses',
+    verdict: 'Mechanically possible, but highly assumption-sensitive',
+    tone: 'warning' as const,
+    body:
+      'Large “after-tax wealth lost” numbers depend on marginal rate, holding period, inflation, and transition design. They should not be presented as generic investor outcomes without those assumptions sitting in the same sentence.',
+    bullets: [
+      'At the current top marginal rate, no-grandfathering and no offset assumptions produce the largest deltas. More typical rates compress the headline sharply.',
+      'Reported budget design is still unsettled. ABC reported full grandfathering for negative gearing and reported that accrued gains on existing assets may retain the old CGT treatment up to a cutoff date.',
+      'The calculator also does not model carried capital losses, loss quarantining, or any property-specific offset settings.',
+    ],
+    sources: [
+      {
+        label: 'ABC budget reporting',
+        href: 'https://www.abc.net.au/news/2026-05-05/labor-to-change-cgt-negative-gearing-and-trusts-in-budget/106640096',
+      },
+      {
+        label: 'PBO operation of the CGT discount',
+        href: 'https://www.pbo.gov.au/publications-and-data/publications/costings/operation-CGT-discount',
+      },
+    ],
+  },
+  {
+    title: '“Money goes to housing instead”',
+    verdict: 'Too strong if CGT and negative gearing move together',
+    tone: 'danger' as const,
+    body:
+      'If the reported package pares back both the CGT discount and negative gearing, the simple story that capital will just rush into leveraged housing is weaker than the post suggests.',
+    bullets: [
+      'A joint package changes both sides of the housing-investor tax advantage, so the substitution story depends on detailed design rather than slogan logic.',
+      'The stronger official-data point is narrower: owner-occupied housing still sits beside a very large tax preference compared with taxable investments.',
+      'That makes “housing remains favoured” easier to defend than “this package pushes money into housing” in the absence of behavioural evidence.',
+    ],
+    sources: [
+      {
+        label: 'ABC on linked CGT and negative gearing changes',
+        href: 'https://www.abc.net.au/news/2026-05-05/labor-to-change-cgt-negative-gearing-and-trusts-in-budget/106640096',
+      },
+      {
+        label: 'Treasury TEIS publication',
+        href: 'https://treasury.gov.au/publication/p2025-721342',
+      },
+    ],
+  },
+  {
+    title: '“This hits anyone trying to build wealth”',
+    verdict: 'Conflicts with the strongest published distribution data',
+    tone: 'success' as const,
+    body:
+      'The broad “anyone building long-term wealth” framing sits awkwardly with the official distribution tables. The clearest public evidence says the current discount is concentrated among higher-income and older Australians.',
+    bullets: [
+      'The PBO says the top 10% receive 82% of the benefit and the top 1% receive about 59%.',
+      'Treasury chart data shows ages 18 to 34 receive about 4% of the CGT discount tax savings, while ages 60+ receive about 52%.',
+      'That does not mean younger or middle-income investors never use the discount. It means the current concession is not mainly flowing to them.',
+    ],
+    sources: [
+      {
+        label: 'PBO distribution tables',
+        href: 'https://www.pbo.gov.au/sites/default/files/2026-02/PBO%20-%20Operation%20of%20the%20CGT%20discount.pdf',
+      },
+      {
+        label: 'Treasury TEIS chart workbook',
+        href: 'https://treasury.gov.au/sites/default/files/2025-12/p2025-721342-chart-data.xlsx',
+      },
+    ],
+  },
+]
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-AU', {
     style: 'currency',
@@ -464,12 +555,67 @@ export default function HomePageClient() {
 
             <div className="mt-4 card-brutal bg-white p-4">
               <p className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-foreground-muted">
-                Important limitation
+                Modelling boundary
               </p>
               <p className="mt-2 text-xs sm:text-sm text-foreground-muted">
                 This page is a sensitivity tool, not a tax ruling. It does not by itself prove any live policy
                 package, age-cohort incidence, capital flight, or business response.
               </p>
+              <p className="mt-3 text-xs sm:text-sm text-foreground-muted">
+                It also does <strong>not</strong> currently model Subdivision 152 small-business concessions,
+                grandfathering or pre/post-cutoff gain apportionment, carried capital losses, or negative
+                gearing settings.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-6">
+          <div className="card-brutal p-4 sm:p-6">
+            <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide">
+              Pressure-Test The Public Claims
+            </h2>
+            <p className="mt-1 max-w-4xl text-xs sm:text-sm text-foreground-muted">
+              These are the main places where a dramatic anti-reform example can outrun what the current model
+              or the published public evidence actually establishes.
+            </p>
+
+            <div className="mt-5 grid gap-4 xl:grid-cols-2">
+              {CLAIM_CHECKS.map((claim) => (
+                <div key={claim.title} className="card-brutal bg-white p-4 sm:p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="text-sm sm:text-base font-black">{claim.title}</p>
+                    <span className={`badge-brutal text-[10px] sm:text-xs ${
+                      claim.tone === 'success'
+                        ? 'badge-success'
+                        : claim.tone === 'warning'
+                          ? 'badge-warning'
+                          : 'badge-danger'
+                    }`}>
+                      {claim.verdict}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-xs sm:text-sm text-foreground-muted">{claim.body}</p>
+                  <ul className="mt-4 space-y-2 text-xs sm:text-sm">
+                    {claim.bullets.map((bullet) => (
+                      <li key={bullet}>• {bullet}</li>
+                    ))}
+                  </ul>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {claim.sources.map((source) => (
+                      <a
+                        key={`${claim.title}-${source.label}`}
+                        href={source.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="badge-brutal bg-bg-alt text-[10px] sm:text-xs brutal-hover"
+                      >
+                        {source.label}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>

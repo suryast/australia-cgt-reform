@@ -16,6 +16,7 @@ It also includes:
 
 - scenario presets labeled `Realistic`, `Optimistic`, and `Exaggerated`
 - a distributional fact section using official age and income split data
+- a claim-pressure-test section for founder, ETF/property, housing-substitution, and distributional framing arguments
 - a `Which Claims Matter Most?` 2x2 matrix for evidence strength vs policy importance
 - direct references to PBO, Treasury, ABS, RBA, and ATO sources
 
@@ -172,6 +173,7 @@ pnpm exec wrangler pages deploy out --project-name=cgt-compound-calculator
 
 - The calculator does not claim to model a final enacted reform package.
 - The indexation comparison is illustrative unless and until a live proposal is published with exact legislative design.
+- The page does not currently model Subdivision 152 small-business concessions, grandfathering / pre-post-cutoff gain apportionment, carried capital losses, or negative gearing settings.
 - Age and income distribution sections rely on official public releases, but some stronger causal claims would still require custom tabulations, linked microdata, or restricted datasets.
 - The detailed research framing for this repo is captured in:
   `docs/shaping/2026-05-05-aus-gov-dataset-plan.md`
