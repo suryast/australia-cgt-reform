@@ -25,6 +25,20 @@ type Scenario = {
   }>
 }
 
+type TaxRatePresetKey = 'lower' | 'middle' | 'upper' | 'top' | 'custom'
+
+const TAX_RATE_PRESETS: Array<{
+  key: TaxRatePresetKey
+  label: string
+  value: number
+}> = [
+  { key: 'lower', label: 'Lower bracket', value: 19 },
+  { key: 'middle', label: 'Middle bracket', value: 32 },
+  { key: 'upper', label: 'Upper bracket', value: 39 },
+  { key: 'top', label: 'Top + Medicare', value: 47 },
+  { key: 'custom', label: 'Custom', value: 0 },
+]
+
 const SCENARIOS: Scenario[] = [
   {
     key: 'ambition',
@@ -318,7 +332,15 @@ export default function HomePageClient() {
   const [yearsHeld, setYearsHeld] = useState(SCENARIOS[0].yearsHeld)
   const [inflationPct, setInflationPct] = useState(SCENARIOS[0].inflationPct)
   const [marginalTaxPct, setMarginalTaxPct] = useState(SCENARIOS[0].marginalTaxPct)
+  const [taxRatePreset, setTaxRatePreset] = useState<TaxRatePresetKey>('top')
   const [activeScenario, setActiveScenario] = useState<ScenarioKey>('ambition')
+  const [advancedMode, setAdvancedMode] = useState(false)
+  const [grandfatheredGainPct, setGrandfatheredGainPct] = useState(0)
+  const [applyFifteenYearExemption, setApplyFifteenYearExemption] = useState(false)
+  const [applyActiveAssetReduction, setApplyActiveAssetReduction] = useState(false)
+  const [retirementExemptionAmount, setRetirementExemptionAmount] = useState(0)
+  const [annualNegativeGearingLoss, setAnnualNegativeGearingLoss] = useState(0)
+  const [negativeGearingRemovedUnderReform, setNegativeGearingRemovedUnderReform] = useState(true)
 
   const derived = useMemo(() => {
     const annualReturn = annualReturnPct / 100
@@ -330,24 +352,67 @@ export default function HomePageClient() {
     const indexedCostBase = principal * Math.pow(1 + inflation, yearsHeld)
     const indexedGain = Math.max(futureValue - indexedCostBase, 0)
 
-    const discountedTax = nominalGain * 0.5 * marginalTaxRate
-    const indexedTax = indexedGain * marginalTaxRate
-    const noDiscountTax = nominalGain * marginalTaxRate
+    const grandfatheredShare = advancedMode ? grandfatheredGainPct / 100 : 0
+    const grandfatheredNominalGain = nominalGain * grandfatheredShare
+    const reformNominalGain = nominalGain - grandfatheredNominalGain
+    const reformIndexedGain = indexedGain * (1 - grandfatheredShare)
 
-    const afterTaxCurrent = futureValue - discountedTax
-    const afterTaxIndexed = futureValue - indexedTax
-    const afterTaxNoDiscount = futureValue - noDiscountTax
+    const currentDiscountedGain = nominalGain * 0.5
+    const indexedScenarioGain = grandfatheredNominalGain * 0.5 + reformIndexedGain
+    const noDiscountScenarioGain = grandfatheredNominalGain * 0.5 + reformNominalGain
 
-    const extraTaxVsCurrent = indexedTax - discountedTax
+    const applySubdivision152Concessions = (grossGain: number) => {
+      if (!advancedMode) return grossGain
+      if (applyFifteenYearExemption) return 0
+
+      let adjustedGain = grossGain
+      if (applyActiveAssetReduction) {
+        adjustedGain *= 0.5
+      }
+
+      adjustedGain = Math.max(adjustedGain - retirementExemptionAmount, 0)
+      return adjustedGain
+    }
+
+    const taxableCurrentGain = applySubdivision152Concessions(currentDiscountedGain)
+    const taxableIndexedGain = applySubdivision152Concessions(indexedScenarioGain)
+    const taxableNoDiscountGain = applySubdivision152Concessions(noDiscountScenarioGain)
+
+    const discountedTax = taxableCurrentGain * marginalTaxRate
+    const indexedTax = taxableIndexedGain * marginalTaxRate
+    const noDiscountTax = taxableNoDiscountGain * marginalTaxRate
+
+    const negativeGearingTaxBenefit = advancedMode
+      ? annualNegativeGearingLoss * yearsHeld * marginalTaxRate
+      : 0
+    const reformNegativeGearingBenefit = negativeGearingRemovedUnderReform ? 0 : negativeGearingTaxBenefit
+
+    const afterTaxCurrent = futureValue - discountedTax + negativeGearingTaxBenefit
+    const afterTaxIndexed = futureValue - indexedTax + reformNegativeGearingBenefit
+    const afterTaxNoDiscount = futureValue - noDiscountTax + reformNegativeGearingBenefit
+
+    const extraTaxVsCurrent = indexedTax - discountedTax + (negativeGearingTaxBenefit - reformNegativeGearingBenefit)
     const extraTaxPct = discountedTax > 0 ? (extraTaxVsCurrent / discountedTax) * 100 : 0
     const ratioVsCurrent = discountedTax > 0 ? indexedTax / discountedTax : 0
-    const chartMax = Math.max(discountedTax, indexedTax, noDiscountTax, futureValue, 1)
+    const chartMax = Math.max(
+      discountedTax,
+      indexedTax,
+      noDiscountTax,
+      afterTaxCurrent,
+      afterTaxIndexed,
+      afterTaxNoDiscount,
+      futureValue,
+      1
+    )
 
     return {
       futureValue,
       nominalGain,
       indexedCostBase,
       indexedGain,
+      taxableCurrentGain,
+      taxableIndexedGain,
+      taxableNoDiscountGain,
       discountedTax,
       indexedTax,
       noDiscountTax,
@@ -358,8 +423,25 @@ export default function HomePageClient() {
       extraTaxPct,
       ratioVsCurrent,
       chartMax,
+      grandfatheredNominalGain,
+      reformIndexedGain,
+      negativeGearingTaxBenefit,
+      reformNegativeGearingBenefit,
     }
-  }, [annualReturnPct, inflationPct, marginalTaxPct, principal, yearsHeld])
+  }, [
+    advancedMode,
+    annualNegativeGearingLoss,
+    annualReturnPct,
+    applyActiveAssetReduction,
+    applyFifteenYearExemption,
+    grandfatheredGainPct,
+    inflationPct,
+    marginalTaxPct,
+    negativeGearingRemovedUnderReform,
+    principal,
+    retirementExemptionAmount,
+    yearsHeld,
+  ])
 
   return (
     <main className="min-h-screen bg-bg">
@@ -424,6 +506,7 @@ export default function HomePageClient() {
                         },
                         scenario
                       )
+                      setTaxRatePreset('custom')
                     }}
                     className="w-full text-left brutal-hover"
                   >
@@ -473,7 +556,109 @@ export default function HomePageClient() {
               <InputCard label="Annual return" value={annualReturnPct} setValue={setAnnualReturnPct} min={1} max={25} step={0.5} format={formatPercent} />
               <InputCard label="Holding period" value={yearsHeld} setValue={setYearsHeld} min={1} max={60} step={1} format={(v) => `${v.toFixed(0)} years`} />
               <InputCard label="Inflation assumption" value={inflationPct} setValue={setInflationPct} min={0} max={10} step={0.1} format={formatPercent} />
-              <InputCard label="Marginal tax rate" value={marginalTaxPct} setValue={setMarginalTaxPct} min={0} max={60} step={0.5} format={formatPercent} wide />
+              <SelectCard
+                label="Tax rate preset"
+                value={taxRatePreset}
+                options={TAX_RATE_PRESETS.map((preset) => ({
+                  value: preset.key,
+                  label: preset.label,
+                }))}
+                onChange={(nextValue) => {
+                  const nextPreset = nextValue as TaxRatePresetKey
+                  setTaxRatePreset(nextPreset)
+                  const preset = TAX_RATE_PRESETS.find((entry) => entry.key === nextPreset)
+                  if (preset && nextPreset !== 'custom') {
+                    setMarginalTaxPct(preset.value)
+                  }
+                }}
+              />
+              <InputCard
+                label="Marginal tax rate"
+                value={marginalTaxPct}
+                setValue={(value) => {
+                  setTaxRatePreset('custom')
+                  setMarginalTaxPct(value)
+                }}
+                min={0}
+                max={60}
+                step={0.5}
+                format={formatPercent}
+                wide
+                disabled={taxRatePreset !== 'custom'}
+              />
+            </div>
+
+            <div className="mt-5 card-brutal bg-bg-alt p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm sm:text-base font-black uppercase tracking-wide">
+                    Advanced Assumptions
+                  </p>
+                  <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
+                    Turn this on for founder / property-style scenarios with grandfathering, Subdiv 152, and
+                    negative gearing assumptions.
+                  </p>
+                </div>
+                <label className="inline-flex items-center gap-2 text-xs sm:text-sm font-black">
+                  <input
+                    type="checkbox"
+                    checked={advancedMode}
+                    onChange={(event) => setAdvancedMode(event.target.checked)}
+                    className="h-4 w-4 accent-black"
+                  />
+                  Enable advanced mode
+                </label>
+              </div>
+
+              {advancedMode ? (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <InputCard
+                    label="Grandfathered gain share"
+                    value={grandfatheredGainPct}
+                    setValue={setGrandfatheredGainPct}
+                    min={0}
+                    max={100}
+                    step={5}
+                    format={formatPercent}
+                  />
+                  <InputCard
+                    label="Retirement exemption used"
+                    value={retirementExemptionAmount}
+                    setValue={setRetirementExemptionAmount}
+                    min={0}
+                    max={500000}
+                    step={10000}
+                    format={formatCurrency}
+                  />
+                  <InputCard
+                    label="Annual negative gearing loss"
+                    value={annualNegativeGearingLoss}
+                    setValue={setAnnualNegativeGearingLoss}
+                    min={0}
+                    max={100000}
+                    step={1000}
+                    format={formatCurrency}
+                  />
+                  <ToggleCard
+                    label="15-year exemption"
+                    description="If eligible, zeroes the taxable gain under both current and reform scenarios."
+                    checked={applyFifteenYearExemption}
+                    setChecked={setApplyFifteenYearExemption}
+                  />
+                  <ToggleCard
+                    label="50% active asset reduction"
+                    description="Applies the Subdiv 152 active asset reduction after any general discount."
+                    checked={applyActiveAssetReduction}
+                    setChecked={setApplyActiveAssetReduction}
+                  />
+                  <ToggleCard
+                    label="Negative gearing removed under reform"
+                    description="If on, the reform scenario loses the annual tax offset benefit from deductible rental losses."
+                    checked={negativeGearingRemovedUnderReform}
+                    setChecked={setNegativeGearingRemovedUnderReform}
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -485,7 +670,11 @@ export default function HomePageClient() {
               <MetricCard label="Portfolio value" value={formatCurrency(derived.futureValue)} tone="main" />
               <MetricCard label="Nominal capital gain" value={formatCurrency(derived.nominalGain)} tone="success" />
               <MetricCard label="Indexed cost base" value={formatCurrency(derived.indexedCostBase)} tone="warning" />
-              <MetricCard label="Extra tax vs current" value={formatCurrency(derived.extraTaxVsCurrent)} tone="danger" />
+              <MetricCard
+                label={advancedMode ? 'Combined drag vs current' : 'Extra tax vs current'}
+                value={formatCurrency(derived.extraTaxVsCurrent)}
+                tone="danger"
+              />
             </div>
           </div>
         </section>
@@ -535,7 +724,11 @@ export default function HomePageClient() {
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <MetricCard label="Tax under current law" value={formatCompactCurrency(derived.discountedTax)} tone="success" />
               <MetricCard label="Tax under indexation" value={formatCompactCurrency(derived.indexedTax)} tone="danger" />
-              <MetricCard label="Increase vs current" value={formatPercent(derived.extraTaxPct)} tone="warning" />
+              <MetricCard
+                label={advancedMode ? 'Combined increase vs current' : 'Increase vs current'}
+                value={formatPercent(derived.extraTaxPct)}
+                tone="warning"
+              />
               <MetricCard label="Multiple of current tax" value={derived.ratioVsCurrent > 0 ? `${derived.ratioVsCurrent.toFixed(2)}x` : 'n/a'} tone="main" />
             </div>
 
@@ -553,6 +746,20 @@ export default function HomePageClient() {
               </p>
             </div>
 
+            {advancedMode ? (
+              <div className="mt-4 card-brutal bg-white p-4">
+                <p className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-foreground-muted">
+                  Advanced readout
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <MetricCard label="Grandfathered gain" value={formatCompactCurrency(derived.grandfatheredNominalGain)} tone="main" />
+                  <MetricCard label="Reform-period indexed gain" value={formatCompactCurrency(derived.reformIndexedGain)} tone="warning" />
+                  <MetricCard label="Current NG tax benefit" value={formatCompactCurrency(derived.negativeGearingTaxBenefit)} tone="success" />
+                  <MetricCard label="Reform NG tax benefit" value={formatCompactCurrency(derived.reformNegativeGearingBenefit)} tone="danger" />
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-4 card-brutal bg-white p-4">
               <p className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-foreground-muted">
                 Modelling boundary
@@ -562,9 +769,9 @@ export default function HomePageClient() {
                 package, age-cohort incidence, capital flight, or business response.
               </p>
               <p className="mt-3 text-xs sm:text-sm text-foreground-muted">
-                It also does <strong>not</strong> currently model Subdivision 152 small-business concessions,
-                grandfathering or pre/post-cutoff gain apportionment, carried capital losses, or negative
-                gearing settings.
+                The advanced mode is an approximation layer, not a full tax engine. It applies a simplified
+                sequence: grandfathered gain share, then general discount where applicable, then optional
+                Subdiv 152 settings, then an optional negative gearing offset delta across the holding period.
               </p>
             </div>
           </div>
@@ -844,6 +1051,7 @@ function InputCard({
   step,
   format,
   wide = false,
+  disabled = false,
 }: {
   label: string
   value: number
@@ -853,6 +1061,7 @@ function InputCard({
   step: number
   format: (value: number) => string
   wide?: boolean
+  disabled?: boolean
 }) {
   return (
     <div className={`card-brutal bg-white p-4 ${wide ? 'sm:col-span-2' : ''}`}>
@@ -867,6 +1076,7 @@ function InputCard({
         step={step}
         value={value}
         onChange={(event) => setValue(Number(event.target.value))}
+        disabled={disabled}
         className="mt-4 w-full accent-black"
       />
       <div className="mt-2 flex justify-between text-[10px] sm:text-xs text-foreground-faint">
@@ -874,6 +1084,64 @@ function InputCard({
         <span>{format(max)}</span>
       </div>
     </div>
+  )
+}
+
+function SelectCard({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string
+  value: string
+  options: Array<{ value: string; label: string }>
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="card-brutal bg-white p-4">
+      <label className="text-xs sm:text-sm font-black uppercase tracking-wide">{label}</label>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-4 w-full rounded-[5px] border-2 border-black bg-bg px-3 py-2 text-sm font-medium"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+function ToggleCard({
+  label,
+  description,
+  checked,
+  setChecked,
+}: {
+  label: string
+  description: string
+  checked: boolean
+  setChecked: (value: boolean) => void
+}) {
+  return (
+    <label className="card-brutal bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs sm:text-sm font-black uppercase tracking-wide">{label}</p>
+          <p className="mt-2 text-xs sm:text-sm text-foreground-muted">{description}</p>
+        </div>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => setChecked(event.target.checked)}
+          className="mt-1 h-4 w-4 accent-black"
+        />
+      </div>
+    </label>
   )
 }
 
