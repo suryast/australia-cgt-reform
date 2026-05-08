@@ -25,6 +25,25 @@ type Scenario = {
   }>
 }
 
+type AdvancedScenario = {
+  key: string
+  name: string
+  description: string
+  principal: number
+  annualReturnPct: number
+  yearsHeld: number
+  inflationPct: number
+  marginalTaxPct: number
+  grandfatheredGainPct: number
+  applyFifteenYearExemption: boolean
+  applyActiveAssetReduction: boolean
+  retirementExemptionAmount: number
+  annualNegativeGearingLoss: number
+  negativeGearingRemovedUnderReform: boolean
+  assessmentLabel: string
+  assessmentTone: 'success' | 'warning' | 'danger'
+}
+
 type TaxRatePresetKey = 'lower' | 'middle' | 'upper' | 'top' | 'custom'
 
 const TAX_RATE_PRESETS: Array<{
@@ -114,6 +133,63 @@ const SCENARIOS: Scenario[] = [
         quote: '“between 2 to 3 per cent”',
       },
     ],
+  },
+]
+
+const ADVANCED_SCENARIOS: AdvancedScenario[] = [
+  {
+    key: 'founder-retirement',
+    name: 'Founder with 152 relief',
+    description: '$1m base, 12% p.a., 10 years, top rate, active asset reduction + $500k retirement exemption.',
+    principal: 1000000,
+    annualReturnPct: 12,
+    yearsHeld: 10,
+    inflationPct: 2.5,
+    marginalTaxPct: 47,
+    grandfatheredGainPct: 0,
+    applyFifteenYearExemption: false,
+    applyActiveAssetReduction: true,
+    retirementExemptionAmount: 500000,
+    annualNegativeGearingLoss: 0,
+    negativeGearingRemovedUnderReform: true,
+    assessmentLabel: 'Founder case',
+    assessmentTone: 'success',
+  },
+  {
+    key: 'partial-grandfathering',
+    name: 'Part-grandfathered investor',
+    description: '$100k base, 9% p.a., 15 years, 39% rate, 60% of gain grandfathered.',
+    principal: 100000,
+    annualReturnPct: 9,
+    yearsHeld: 15,
+    inflationPct: 2.8,
+    marginalTaxPct: 39,
+    grandfatheredGainPct: 60,
+    applyFifteenYearExemption: false,
+    applyActiveAssetReduction: false,
+    retirementExemptionAmount: 0,
+    annualNegativeGearingLoss: 0,
+    negativeGearingRemovedUnderReform: true,
+    assessmentLabel: 'Transition case',
+    assessmentTone: 'warning',
+  },
+  {
+    key: 'property-negative-gearing',
+    name: 'Property with NG offset',
+    description: '$150k equity, 7% p.a., 12 years, top rate, $18k annual rental loss offset removed under reform.',
+    principal: 150000,
+    annualReturnPct: 7,
+    yearsHeld: 12,
+    inflationPct: 3,
+    marginalTaxPct: 47,
+    grandfatheredGainPct: 30,
+    applyFifteenYearExemption: false,
+    applyActiveAssetReduction: false,
+    retirementExemptionAmount: 0,
+    annualNegativeGearingLoss: 18000,
+    negativeGearingRemovedUnderReform: true,
+    assessmentLabel: 'Property case',
+    assessmentTone: 'danger',
   },
 ]
 
@@ -326,6 +402,34 @@ function applyScenario(setters: {
   setters.setMarginalTaxPct(scenario.marginalTaxPct)
 }
 
+function applyAdvancedScenario(setters: {
+  setPrincipal: (v: number) => void
+  setAnnualReturnPct: (v: number) => void
+  setYearsHeld: (v: number) => void
+  setInflationPct: (v: number) => void
+  setMarginalTaxPct: (v: number) => void
+  setGrandfatheredGainPct: (v: number) => void
+  setApplyFifteenYearExemption: (v: boolean) => void
+  setApplyActiveAssetReduction: (v: boolean) => void
+  setRetirementExemptionAmount: (v: number) => void
+  setAnnualNegativeGearingLoss: (v: number) => void
+  setNegativeGearingRemovedUnderReform: (v: boolean) => void
+  setAdvancedMode: (v: boolean) => void
+}, scenario: AdvancedScenario) {
+  setters.setAdvancedMode(true)
+  setters.setPrincipal(scenario.principal)
+  setters.setAnnualReturnPct(scenario.annualReturnPct)
+  setters.setYearsHeld(scenario.yearsHeld)
+  setters.setInflationPct(scenario.inflationPct)
+  setters.setMarginalTaxPct(scenario.marginalTaxPct)
+  setters.setGrandfatheredGainPct(scenario.grandfatheredGainPct)
+  setters.setApplyFifteenYearExemption(scenario.applyFifteenYearExemption)
+  setters.setApplyActiveAssetReduction(scenario.applyActiveAssetReduction)
+  setters.setRetirementExemptionAmount(scenario.retirementExemptionAmount)
+  setters.setAnnualNegativeGearingLoss(scenario.annualNegativeGearingLoss)
+  setters.setNegativeGearingRemovedUnderReform(scenario.negativeGearingRemovedUnderReform)
+}
+
 export default function HomePageClient() {
   const [principal, setPrincipal] = useState(SCENARIOS[0].principal)
   const [annualReturnPct, setAnnualReturnPct] = useState(SCENARIOS[0].annualReturnPct)
@@ -471,7 +575,7 @@ export default function HomePageClient() {
           </div>
         </header>
 
-        <section className="mb-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="mb-6">
           <div className="card-brutal p-4 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -549,6 +653,79 @@ export default function HomePageClient() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="mt-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-base sm:text-xl font-black uppercase tracking-wide">
+                    Advanced Scenario Cards
+                  </h3>
+                  <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
+                    Use these when you want the calculator to prefill founder relief, transition, or property-style assumptions.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {ADVANCED_SCENARIOS.map((scenario) => (
+                  <div key={scenario.key} className="card-brutal card-bg-alt p-4">
+                    <button
+                      onClick={() => {
+                        applyAdvancedScenario(
+                          {
+                            setPrincipal,
+                            setAnnualReturnPct,
+                            setYearsHeld,
+                            setInflationPct,
+                            setMarginalTaxPct,
+                            setGrandfatheredGainPct,
+                            setApplyFifteenYearExemption,
+                            setApplyActiveAssetReduction,
+                            setRetirementExemptionAmount,
+                            setAnnualNegativeGearingLoss,
+                            setNegativeGearingRemovedUnderReform,
+                            setAdvancedMode,
+                          },
+                          scenario
+                        )
+                        setTaxRatePreset('custom')
+                        setActiveScenario('moderate')
+                      }}
+                      className="w-full text-left brutal-hover"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <p className="text-sm font-black">{scenario.name}</p>
+                        <span className={`badge-brutal text-[10px] sm:text-xs ${
+                          scenario.assessmentTone === 'success'
+                            ? 'badge-success'
+                            : scenario.assessmentTone === 'warning'
+                              ? 'badge-warning'
+                              : 'badge-danger'
+                        }`}>
+                          {scenario.assessmentLabel}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-foreground-muted">{scenario.description}</p>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 card-brutal card-purple p-4 sm:p-6">
+              <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide text-black">
+                Outcome Snapshot
+              </h2>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <MetricCard label="Portfolio value" value={formatCurrency(derived.futureValue)} tone="main" />
+                <MetricCard label="Nominal capital gain" value={formatCurrency(derived.nominalGain)} tone="success" />
+                <MetricCard label="Indexed cost base" value={formatCurrency(derived.indexedCostBase)} tone="warning" />
+                <MetricCard
+                  label={advancedMode ? 'Combined drag vs current' : 'Extra tax vs current'}
+                  value={formatCurrency(derived.extraTaxVsCurrent)}
+                  tone="danger"
+                />
+              </div>
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -659,22 +836,6 @@ export default function HomePageClient() {
                   />
                 </div>
               ) : null}
-            </div>
-          </div>
-
-          <div className="card-brutal card-purple p-4 sm:p-6">
-            <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide text-black">
-              Outcome Snapshot
-            </h2>
-            <div className="mt-4 grid gap-3">
-              <MetricCard label="Portfolio value" value={formatCurrency(derived.futureValue)} tone="main" />
-              <MetricCard label="Nominal capital gain" value={formatCurrency(derived.nominalGain)} tone="success" />
-              <MetricCard label="Indexed cost base" value={formatCurrency(derived.indexedCostBase)} tone="warning" />
-              <MetricCard
-                label={advancedMode ? 'Combined drag vs current' : 'Extra tax vs current'}
-                value={formatCurrency(derived.extraTaxVsCurrent)}
-                tone="danger"
-              />
             </div>
           </div>
         </section>
