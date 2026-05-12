@@ -1197,6 +1197,25 @@ export default function HomePageClient() {
           </div>
         </section>
 
+        <section className="mb-6">
+          <div className="card-brutal p-4 sm:p-6">
+            <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide">
+              Updates
+            </h2>
+            <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
+              Recent changes to this tool.
+            </p>
+            <div className="mt-4 space-y-3">
+              <UpdateRow label="Advanced scenario cards" detail="Added card-based UI for founder relief, transition, and property-style advanced scenario presets." />
+              <UpdateRow label="Advanced CGT scenario controls" detail="Introduced grandfathering, Subdivision 152, negative gearing offsets, and tax-rate preset controls in advanced assumptions mode." />
+              <UpdateRow label="CGT claim boundaries clarified" detail="Tightened language around what the claim-check section does and does not establish from public data." />
+              <UpdateRow label="Policy axis colors and social preview" detail="Refreshed the 2×2 matrix colour scheme and the Open Graph preview image." />
+              <UpdateRow label="Project reasoning and card backgrounds" detail="Added reasoning documentation and fixed coloured card background rendering." />
+              <UpdateRow label="Initial release" detail="Launched with scenario presets, distributional fact section, claim-pressure-test section, and the 2×2 evidence matrix." />
+            </div>
+          </div>
+        </section>
+
         <Footer />
       </div>
     </main>
@@ -1373,6 +1392,17 @@ function ScenarioBar({
             <div style={{ width: `${Math.min(wealthPct, 100)}%`, backgroundColor: 'var(--main)' }} className="h-full border-r-2 border-black" />
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function UpdateRow({ label, detail }: { label: string; detail: string }) {
+  return (
+    <div className="card-brutal bg-white p-4">
+      <div className="flex flex-wrap items-start gap-3">
+        <span className="badge-brutal badge-main text-[10px] sm:text-xs shrink-0">{label}</span>
+        <p className="text-xs sm:text-sm text-foreground-muted">{detail}</p>
       </div>
     </div>
   )
