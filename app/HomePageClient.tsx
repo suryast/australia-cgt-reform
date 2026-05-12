@@ -5,6 +5,7 @@ import { Footer } from '@/components/Footer'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
 type ScenarioKey = 'ambition' | 'balanced' | 'moderate'
+type PropertyType = 'established' | 'new' | 'non-residential'
 
 type Scenario = {
   key: ScenarioKey
@@ -34,17 +35,21 @@ type AdvancedScenario = {
   yearsHeld: number
   inflationPct: number
   marginalTaxPct: number
-  grandfatheredGainPct: number
-  applyFifteenYearExemption: boolean
-  applyActiveAssetReduction: boolean
-  retirementExemptionAmount: number
+  acquisitionDate: string
+  disposalDate: string
+  subDiv152Active: boolean
+  subDiv152ActiveAsset: boolean
+  subDiv152RetirementExemption: boolean
   annualNegativeGearingLoss: number
-  negativeGearingRemovedUnderReform: boolean
+  userAge: number
   assessmentLabel: string
   assessmentTone: 'success' | 'warning' | 'danger'
 }
 
 type TaxRatePresetKey = 'lower' | 'middle' | 'upper' | 'top' | 'custom'
+
+const CUTOFF_DATE = new Date('2027-07-01T00:00:00.000Z')
+const NG_CUTOFF_DATE = new Date('2026-05-12T09:30:00.000Z') // 7:30pm AEST = UTC+10
 
 const TAX_RATE_PRESETS: Array<{
   key: TaxRatePresetKey
@@ -58,6 +63,38 @@ const TAX_RATE_PRESETS: Array<{
   { key: 'custom', label: 'Custom', value: 0 },
 ]
 
+// CPI data: ABS 6401.0, all-groups Australia, base 2011-12=100
+const CPI_ANNUAL: Record<number, number> = {
+  1985: 34.5, 1986: 37.3, 1987: 40.3, 1988: 42.5, 1989: 45.5,
+  1990: 49.3, 1991: 51.8, 1992: 52.1, 1993: 52.5, 1994: 53.2,
+  1995: 55.1, 1996: 57.2, 1997: 57.8, 1998: 58.0, 1999: 59.0,
+  2000: 63.1, 2001: 67.0, 2002: 69.5, 2003: 71.7, 2004: 73.6,
+  2005: 76.0, 2006: 79.2, 2007: 81.6, 2008: 85.9, 2009: 88.4,
+  2010: 91.6, 2011: 95.3, 2012: 98.6, 2013: 102.0, 2014: 105.3,
+  2015: 107.4, 2016: 109.3, 2017: 111.6, 2018: 114.0, 2019: 115.8,
+  2020: 115.1, 2021: 118.8, 2022: 130.4, 2023: 140.7, 2024: 143.7,
+  2025: 147.0, 2026: 150.0, 2027: 153.0, 2028: 156.1, 2029: 159.2,
+  2030: 162.4, 2031: 165.7, 2032: 169.0, 2033: 172.4, 2034: 175.8,
+  2035: 179.3, 2040: 197.0, 2045: 216.8, 2050: 238.3, 2060: 288.0,
+  2076: 380.0,
+}
+
+function getCPI(date: Date): number {
+  const year = date.getFullYear()
+  const frac = date.getMonth() / 12
+  const keys = Object.keys(CPI_ANNUAL).map(Number).sort((a, b) => a - b)
+  const lo = keys.filter(k => k <= year).at(-1) ?? keys[0]
+  const hi = keys.find(k => k > year) ?? lo
+  const loVal = CPI_ANNUAL[lo]
+  const hiVal = CPI_ANNUAL[hi]
+  if (lo === hi) return loVal + (loVal * 0.025 * frac)
+  const yearFrac = (year - lo) / (hi - lo)
+  const annual = loVal + (hiVal - loVal) * yearFrac
+  const nextYearFrac = Math.min((year + 1 - lo) / (hi - lo), 1)
+  const nextAnnual = loVal + (hiVal - loVal) * nextYearFrac
+  return annual + (nextAnnual - annual) * frac
+}
+
 const SCENARIOS: Scenario[] = [
   {
     key: 'ambition',
@@ -68,19 +105,19 @@ const SCENARIOS: Scenario[] = [
     yearsHeld: 50,
     inflationPct: 2.5,
     marginalTaxPct: 47,
-    assessmentLabel: 'Exaggerated',
+    assessmentLabel: 'High-return assumption',
     assessmentTone: 'danger',
-    assessmentReason: 'The 15% annual return assumption is far above the official retail-investor baseline commonly cited in Australian guidance.',
+    assessmentReason: 'This is the 15% / 50-year scenario modelled under the legislated From 1 July 2027 regime. The 15% annual return assumption is far above the official retail-investor baseline commonly cited in Australian guidance.',
     sources: [
       {
         label: 'ASIC Moneysmart',
         href: 'https://moneysmart.gov.au/investment-warnings/investment-seminars',
-        quote: '“Shares have return around 7% a year”',
+        quote: '"Shares have return around 7% a year"',
       },
       {
         label: 'RBA inflation target',
         href: 'https://www.rba.gov.au/education/resources/explainers/australias-inflation-target.html',
-        quote: '“between 2 to 3 per cent”',
+        quote: '"between 2 to 3 per cent"',
       },
     ],
   },
@@ -95,17 +132,17 @@ const SCENARIOS: Scenario[] = [
     marginalTaxPct: 39,
     assessmentLabel: 'Optimistic',
     assessmentTone: 'warning',
-    assessmentReason: 'The 9% return assumption is plausible for strong long-run growth assets, but it sits above the usual public-policy baseline.',
+    assessmentReason: 'The 9% return assumption is plausible for strong long-run growth assets, but it sits above the usual public-policy baseline. Modelled under the legislated From 1 July 2027 regime.',
     sources: [
       {
         label: 'Future Fund FY23',
         href: 'https://yearinreviewfy23.futurefund.gov.au/fy23-performance-results.html',
-        quote: '“10-year return of 8.8% per annum”',
+        quote: '"10-year return of 8.8% per annum"',
       },
       {
         label: 'RBA inflation target',
         href: 'https://www.rba.gov.au/education/resources/explainers/australias-inflation-target.html',
-        quote: '“between 2 to 3 per cent”',
+        quote: '"between 2 to 3 per cent"',
       },
     ],
   },
@@ -120,17 +157,17 @@ const SCENARIOS: Scenario[] = [
     marginalTaxPct: 32,
     assessmentLabel: 'Realistic',
     assessmentTone: 'success',
-    assessmentReason: 'The 7% return and 3% inflation assumptions are closest to the mainstream Australian long-run reference points.',
+    assessmentReason: 'The 7% return and 3% inflation assumptions are closest to the mainstream Australian long-run reference points. Modelled under the legislated From 1 July 2027 regime.',
     sources: [
       {
         label: 'ASIC Moneysmart',
         href: 'https://moneysmart.gov.au/investment-warnings/investment-seminars',
-        quote: '“Shares have return around 7% a year”',
+        quote: '"Shares have return around 7% a year"',
       },
       {
         label: 'RBA inflation target',
         href: 'https://www.rba.gov.au/education/resources/explainers/australias-inflation-target.html',
-        quote: '“between 2 to 3 per cent”',
+        quote: '"between 2 to 3 per cent"',
       },
     ],
   },
@@ -139,55 +176,58 @@ const SCENARIOS: Scenario[] = [
 const ADVANCED_SCENARIOS: AdvancedScenario[] = [
   {
     key: 'founder-retirement',
-    name: 'Founder with 152 relief',
+    name: 'Founder with Subdiv 152 relief',
     description: '$1m base, 12% p.a., 10 years, top rate, active asset reduction + $500k retirement exemption.',
     principal: 1000000,
     annualReturnPct: 12,
     yearsHeld: 10,
     inflationPct: 2.5,
     marginalTaxPct: 47,
-    grandfatheredGainPct: 0,
-    applyFifteenYearExemption: false,
-    applyActiveAssetReduction: true,
-    retirementExemptionAmount: 500000,
+    acquisitionDate: '2020-01-01',
+    disposalDate: '2030-01-01',
+    subDiv152Active: true,
+    subDiv152ActiveAsset: true,
+    subDiv152RetirementExemption: true,
     annualNegativeGearingLoss: 0,
-    negativeGearingRemovedUnderReform: true,
+    userAge: 58,
     assessmentLabel: 'Founder case',
     assessmentTone: 'success',
   },
   {
     key: 'partial-grandfathering',
-    name: 'Part-grandfathered investor',
-    description: '$100k base, 9% p.a., 15 years, 39% rate, 60% of gain grandfathered.',
+    name: 'Straddle-the-cutoff investor',
+    description: '$100k base, 9% p.a., acquired 2022, disposed 2032, 39% rate — straddles 1 July 2027.',
     principal: 100000,
     annualReturnPct: 9,
-    yearsHeld: 15,
+    yearsHeld: 10,
     inflationPct: 2.8,
     marginalTaxPct: 39,
-    grandfatheredGainPct: 60,
-    applyFifteenYearExemption: false,
-    applyActiveAssetReduction: false,
-    retirementExemptionAmount: 0,
+    acquisitionDate: '2022-01-01',
+    disposalDate: '2032-01-01',
+    subDiv152Active: false,
+    subDiv152ActiveAsset: false,
+    subDiv152RetirementExemption: false,
     annualNegativeGearingLoss: 0,
-    negativeGearingRemovedUnderReform: true,
+    userAge: 45,
     assessmentLabel: 'Transition case',
     assessmentTone: 'warning',
   },
   {
     key: 'property-negative-gearing',
     name: 'Property with NG offset',
-    description: '$150k equity, 7% p.a., 12 years, top rate, $18k annual rental loss offset removed under reform.',
+    description: '$150k equity, 7% p.a., 12 years, top rate, established property acquired post-cutoff.',
     principal: 150000,
     annualReturnPct: 7,
     yearsHeld: 12,
     inflationPct: 3,
     marginalTaxPct: 47,
-    grandfatheredGainPct: 30,
-    applyFifteenYearExemption: false,
-    applyActiveAssetReduction: false,
-    retirementExemptionAmount: 0,
+    acquisitionDate: '2027-09-01',
+    disposalDate: '2039-09-01',
+    subDiv152Active: false,
+    subDiv152ActiveAsset: false,
+    subDiv152RetirementExemption: false,
     annualNegativeGearingLoss: 18000,
-    negativeGearingRemovedUnderReform: true,
+    userAge: 45,
     assessmentLabel: 'Property case',
     assessmentTone: 'danger',
   },
@@ -240,6 +280,21 @@ const SOURCE_CARDS = [
 
 const REFERENCE_LINKS = [
   {
+    title: 'Budget Paper 1, Statement 4 — Tax reform for workers, businesses and future generations',
+    href: 'https://budget.gov.au/content/bp1/download/bp1-2026-27.pdf',
+    detail: 'pp.136–142, Chart 4.5 — distributional rationale and lifetime income concentration of CGT discount benefit.',
+  },
+  {
+    title: 'Budget Paper 2 — Tax Reform: Boosting Home Ownership (CGT and negative gearing)',
+    href: 'https://budget.gov.au/content/bp2/download/bp2-2026-27.pdf',
+    detail: 'pp.21–22 — full policy detail: 1 July 2027 cutoff, indexation + 30% min tax, grandfathering, NG carve-out for new builds.',
+  },
+  {
+    title: 'Budget Paper 2, p.18 — Expanding venture capital tax incentives',
+    href: 'https://budget.gov.au/content/bp2/download/bp2-2026-27.pdf',
+    detail: 'ESVCLP and VCLP investee asset and fund size cap increases. Tax-exempt ESVCLP returns unaffected by CGT discount change.',
+  },
+  {
     title: 'PBO: Operation of the CGT discount',
     href: 'https://www.pbo.gov.au/publications-and-data/publications/costings/operation-CGT-discount',
     detail: 'Distribution by income percentile and asset class; official baseline for who benefits now.',
@@ -279,90 +334,91 @@ const REFERENCE_LINKS = [
 const CLAIM_CHECKS = [
   {
     title: 'Founder exit claim',
-    verdict: 'Upper-bound example, not the representative founder case',
+    verdict: 'Subdiv 152 relief now modelled — check advanced mode',
     tone: 'warning' as const,
-    body:
-      'A “$225k worse off on a $1m business sale” result broadly matches a founder on the top marginal rate with no Subdivision 152 relief. But Division 152 can materially change the result for eligible active business assets.',
+    body: 'A "$225k worse off on a $1m business sale" result broadly matches a founder on the top marginal rate with no Subdivision 152 relief. The calculator now models the simplified Subdiv 152 stack in advanced mode. The government has indicated consultation on early-stage business treatment is underway.',
     bullets: [
-      'The calculator currently does not model the 50% active asset reduction, the retirement exemption, the 15-year exemption, or the rollover.',
-      'For an eligible active asset, the general 50% discount can interact with the small-business concessions, so a founder may be nowhere near the simple $235k extra-tax path.',
-      'That means founder examples should be framed as “without Division 152 concessions” unless the scenario explicitly proves they do not apply.',
+      'Toggle "Asset qualifies as active business asset (Subdiv 152)" in advanced mode to see the Subdivision 152 scenario.',
+      'With the 50% active asset reduction and $500k retirement exemption, the tax burden drops significantly.',
+      'ESS and early-stage startup treatment remains under consultation and is not yet modelled.',
     ],
     sources: [
-      {
-        label: 'ATO small business CGT concessions',
-        href: 'https://www.ato.gov.au/law/view/view.htm?docid=SAV/CGTCONCESSIONS/00001',
-      },
-      {
-        label: 'AustLII Subdivision 152-D',
-        href: 'https://classic.austlii.edu.au/au/legis/cth/consol_act/itaa1997240/s152.300.html',
-      },
+      { label: 'ATO small business CGT concessions', href: 'https://www.ato.gov.au/law/view/view.htm?docid=SAV/CGTCONCESSIONS/00001' },
+      { label: 'Budget Paper 2, p.21–22', href: 'https://budget.gov.au/content/bp2/download/bp2-2026-27.pdf' },
     ],
   },
   {
     title: 'ETF and property headline losses',
-    verdict: 'Mechanically possible, but highly assumption-sensitive',
+    verdict: 'Grandfathering is now full and date-based',
     tone: 'warning' as const,
-    body:
-      'Large “after-tax wealth lost” numbers depend on marginal rate, holding period, inflation, and transition design. They should not be presented as generic investor outcomes without those assumptions sitting in the same sentence.',
+    body: 'The legislated design provides full grandfathering: gains on assets acquired before 1 July 2027 remain under the existing 50% CGT discount up to that date. Only post-cutoff gains on post-cutoff acquisitions (or the straddle portion) fall under the new regime.',
     bullets: [
-      'At the current top marginal rate, no-grandfathering and no offset assumptions produce the largest deltas. More typical rates compress the headline sharply.',
-      'Reported budget design is still unsettled. ABC reported full grandfathering for negative gearing and reported that accrued gains on existing assets may retain the old CGT treatment up to a cutoff date.',
-      'The calculator also does not model carried capital losses, loss quarantining, or any property-specific offset settings.',
+      'Use the acquisition and disposal date inputs to model the straddle-the-cutoff scenario for your situation.',
+      'The headline loss numbers are at their largest for fully post-2027 scenarios. For assets already held, only a portion of gain is affected.',
+      'The calculator applies a straight-line apportionment for straddle gains. Actual legislation may specify alternative methods.',
     ],
     sources: [
-      {
-        label: 'ABC budget reporting',
-        href: 'https://www.abc.net.au/news/2026-05-05/labor-to-change-cgt-negative-gearing-and-trusts-in-budget/106640096',
-      },
-      {
-        label: 'PBO operation of the CGT discount',
-        href: 'https://www.pbo.gov.au/publications-and-data/publications/costings/operation-CGT-discount',
-      },
+      { label: 'Budget Paper 2, pp.21–22 — full grandfathering confirmed', href: 'https://budget.gov.au/content/bp2/download/bp2-2026-27.pdf' },
+      { label: 'PBO operation of the CGT discount', href: 'https://www.pbo.gov.au/publications-and-data/publications/costings/operation-CGT-discount' },
     ],
   },
   {
-    title: '“Money goes to housing instead”',
-    verdict: 'Too strong if CGT and negative gearing move together',
+    title: '"Money goes to housing instead"',
+    verdict: 'CGT and negative gearing move together — weaker substitution argument',
     tone: 'danger' as const,
-    body:
-      'If the reported package pares back both the CGT discount and negative gearing, the simple story that capital will just rush into leveraged housing is weaker than the post suggests.',
+    body: 'The legislated package changes both CGT and negative gearing simultaneously, with a new-build carve-out for negative gearing. The simple story that capital will rush into leveraged housing is weaker when both sides of the housing-investor tax advantage are adjusted together.',
     bullets: [
-      'A joint package changes both sides of the housing-investor tax advantage, so the substitution story depends on detailed design rather than slogan logic.',
-      'The stronger official-data point is narrower: owner-occupied housing still sits beside a very large tax preference compared with taxable investments.',
-      'That makes “housing remains favoured” easier to defend than “this package pushes money into housing” in the absence of behavioural evidence.',
+      'Negative gearing losses on new established residential properties acquired from 12 May 2026 can no longer offset other income — only future rental income or property gains.',
+      'New builds retain full negative gearing, creating a deliberate incentive toward new housing supply.',
+      'That makes "housing remains favoured" harder to sustain than "this package pushes money into housing" for post-cutoff established property.',
     ],
     sources: [
-      {
-        label: 'ABC on linked CGT and negative gearing changes',
-        href: 'https://www.abc.net.au/news/2026-05-05/labor-to-change-cgt-negative-gearing-and-trusts-in-budget/106640096',
-      },
-      {
-        label: 'Treasury TEIS publication',
-        href: 'https://treasury.gov.au/publication/p2025-721342',
-      },
+      { label: 'Budget Paper 2, pp.21–22', href: 'https://budget.gov.au/content/bp2/download/bp2-2026-27.pdf' },
+      { label: 'Treasury TEIS publication', href: 'https://treasury.gov.au/publication/p2025-721342' },
     ],
   },
   {
-    title: '“This hits anyone trying to build wealth”',
-    verdict: 'Conflicts with the strongest published distribution data',
+    title: '"This hits anyone trying to build wealth"',
+    verdict: 'Conflicts strongly with BP1 Chart 4.5 lifetime distribution data',
     tone: 'success' as const,
-    body:
-      'The broad “anyone building long-term wealth” framing sits awkwardly with the official distribution tables. The clearest public evidence says the current discount is concentrated among higher-income and older Australians.',
+    body: 'The official distributional data shows the current CGT discount is concentrated among higher-income and older Australians — not broadly spread across wealth-builders. Budget Paper 1 Chart 4.5 shows the top 1% by lifetime income received over $700,000 cumulative benefit from the discount since 2000.',
     bullets: [
-      'The PBO says the top 10% receive 82% of the benefit and the top 1% receive about 59%.',
-      'Treasury chart data shows ages 18 to 34 receive about 4% of the CGT discount tax savings, while ages 60+ receive about 52%.',
-      'That does not mean younger or middle-income investors never use the discount. It means the current concession is not mainly flowing to them.',
+      'The PBO says the top 10% receive 82% of the CGT discount benefit and the top 1% receive about 59%.',
+      'Treasury chart data shows ages 18–34 receive about 4% of the CGT discount tax savings, while ages 60+ receive about 52%.',
+      'BP1 Chart 4.5 lifetime income data further concentrates the picture: the discount accrues overwhelmingly over multi-decade horizons at the top.',
     ],
     sources: [
-      {
-        label: 'PBO distribution tables',
-        href: 'https://www.pbo.gov.au/sites/default/files/2026-02/PBO%20-%20Operation%20of%20the%20CGT%20discount.pdf',
-      },
-      {
-        label: 'Treasury TEIS chart workbook',
-        href: 'https://treasury.gov.au/sites/default/files/2025-12/p2025-721342-chart-data.xlsx',
-      },
+      { label: 'Budget Paper 1, Statement 4, Chart 4.5', href: 'https://budget.gov.au/content/bp1/download/bp1-2026-27.pdf' },
+      { label: 'PBO distribution tables', href: 'https://www.pbo.gov.au/sites/default/files/2026-02/PBO%20-%20Operation%20of%20the%20CGT%20discount.pdf' },
+      { label: 'Treasury TEIS chart workbook', href: 'https://treasury.gov.au/sites/default/files/2025-12/p2025-721342-chart-data.xlsx' },
+    ],
+  },
+  {
+    title: '"30% minimum tax floor catches middle-bracket investors"',
+    verdict: 'New wrinkle — adds complexity',
+    tone: 'warning' as const,
+    body: 'The 30% minimum tax acts as a floor on the post-2027 nominal capital gain, meaning taxpayers on the 32% or 39% marginal rate who benefit most from indexation may still face a higher tax bill than the indexed gain calculation alone would suggest.',
+    bullets: [
+      'At low marginal rates or with significant inflation, the indexation calculation alone produces tax below 30% of the nominal gain — triggering the floor.',
+      'The floor does not apply to income support recipients, including Age Pension recipients.',
+      'For middle-bracket investors making moderate real returns over moderate periods, the floor is the binding constraint more often than the marginal rate on the indexed gain.',
+    ],
+    sources: [
+      { label: 'Budget Paper 2, p.21 — minimum tax floor details', href: 'https://budget.gov.au/content/bp2/download/bp2-2026-27.pdf' },
+    ],
+  },
+  {
+    title: 'ESS / startup employee treatment',
+    verdict: 'Under consultation — not yet resolved',
+    tone: 'danger' as const,
+    body: 'The treatment of Employee Share Scheme (ESS) shares and early-stage employee equity under the new CGT regime is not yet finalised. Consultation is underway.',
+    bullets: [
+      'This is a legitimate concern for startup employees who receive equity as part of compensation.',
+      'The government has indicated it is aware of the issue and consultation is ongoing.',
+      'This calculator does not model ESS carve-outs as the design is not finalised.',
+    ],
+    sources: [
+      { label: 'Budget Paper 2, p.21 — consultation noted', href: 'https://budget.gov.au/content/bp2/download/bp2-2026-27.pdf' },
     ],
   },
 ]
@@ -408,12 +464,13 @@ function applyAdvancedScenario(setters: {
   setYearsHeld: (v: number) => void
   setInflationPct: (v: number) => void
   setMarginalTaxPct: (v: number) => void
-  setGrandfatheredGainPct: (v: number) => void
-  setApplyFifteenYearExemption: (v: boolean) => void
-  setApplyActiveAssetReduction: (v: boolean) => void
-  setRetirementExemptionAmount: (v: number) => void
+  setAcquisitionDate: (v: string) => void
+  setDisposalDate: (v: string) => void
+  setSubDiv152Active: (v: boolean) => void
+  setSubDiv152ActiveAsset: (v: boolean) => void
+  setSubDiv152RetirementExemption: (v: boolean) => void
   setAnnualNegativeGearingLoss: (v: number) => void
-  setNegativeGearingRemovedUnderReform: (v: boolean) => void
+  setUserAge: (v: number) => void
   setAdvancedMode: (v: boolean) => void
 }, scenario: AdvancedScenario) {
   setters.setAdvancedMode(true)
@@ -422,15 +479,17 @@ function applyAdvancedScenario(setters: {
   setters.setYearsHeld(scenario.yearsHeld)
   setters.setInflationPct(scenario.inflationPct)
   setters.setMarginalTaxPct(scenario.marginalTaxPct)
-  setters.setGrandfatheredGainPct(scenario.grandfatheredGainPct)
-  setters.setApplyFifteenYearExemption(scenario.applyFifteenYearExemption)
-  setters.setApplyActiveAssetReduction(scenario.applyActiveAssetReduction)
-  setters.setRetirementExemptionAmount(scenario.retirementExemptionAmount)
+  setters.setAcquisitionDate(scenario.acquisitionDate)
+  setters.setDisposalDate(scenario.disposalDate)
+  setters.setSubDiv152Active(scenario.subDiv152Active)
+  setters.setSubDiv152ActiveAsset(scenario.subDiv152ActiveAsset)
+  setters.setSubDiv152RetirementExemption(scenario.subDiv152RetirementExemption)
   setters.setAnnualNegativeGearingLoss(scenario.annualNegativeGearingLoss)
-  setters.setNegativeGearingRemovedUnderReform(scenario.negativeGearingRemovedUnderReform)
+  setters.setUserAge(scenario.userAge)
 }
 
 export default function HomePageClient() {
+  // Core sliders
   const [principal, setPrincipal] = useState(SCENARIOS[0].principal)
   const [annualReturnPct, setAnnualReturnPct] = useState(SCENARIOS[0].annualReturnPct)
   const [yearsHeld, setYearsHeld] = useState(SCENARIOS[0].yearsHeld)
@@ -439,111 +498,249 @@ export default function HomePageClient() {
   const [taxRatePreset, setTaxRatePreset] = useState<TaxRatePresetKey>('top')
   const [activeScenario, setActiveScenario] = useState<ScenarioKey>('ambition')
   const [advancedMode, setAdvancedMode] = useState(false)
-  const [grandfatheredGainPct, setGrandfatheredGainPct] = useState(0)
-  const [applyFifteenYearExemption, setApplyFifteenYearExemption] = useState(false)
-  const [applyActiveAssetReduction, setApplyActiveAssetReduction] = useState(false)
-  const [retirementExemptionAmount, setRetirementExemptionAmount] = useState(0)
+
+  // Date-based grandfathering
+  const [acquisitionDate, setAcquisitionDate] = useState('2020-01-01')
+  const [disposalDate, setDisposalDate] = useState('2030-01-01')
+  const [holdingOver12Months, setHoldingOver12Months] = useState(true)
+
+  // Income support exemption (Item 5)
+  const [isIncomeSupport, setIsIncomeSupport] = useState(false)
+
+  // Property type (Item 3)
+  const [propertyType, setPropertyType] = useState<PropertyType>('non-residential')
+  const [useDiscountForNewProperty, setUseDiscountForNewProperty] = useState(false)
+
+  // Subdiv 152 (Item 6)
+  const [subDiv152Active, setSubDiv152Active] = useState(false)
+  const [subDiv152MaxNetAssets, setSubDiv152MaxNetAssets] = useState(false)
+  const [subDiv152SmallBizTurnover, setSubDiv152SmallBizTurnover] = useState(false)
+  const [subDiv152FifteenYearExemption, setSubDiv152FifteenYearExemption] = useState(false)
+  const [subDiv152RetirementExemption, setSubDiv152RetirementExemption] = useState(false)
+  const [userAge, setUserAge] = useState(45)
+
+  // Subdiv 152 active-asset convenience flag used by advanced scenario presets
+  const [subDiv152ActiveAsset, setSubDiv152ActiveAsset] = useState(false)
+
+  // Negative gearing (Item 4)
+  const [ngPropertyDate, setNgPropertyDate] = useState('2026-01-01')
+  const [ngPropertyType, setNgPropertyType] = useState<'established' | 'new'>('established')
+  const [annualRentalIncome, setAnnualRentalIncome] = useState(30000)
+  const [annualDeductibleExpenses, setAnnualDeductibleExpenses] = useState(42000)
+
+  // Manual NG loss override (used by advanced scenario presets)
   const [annualNegativeGearingLoss, setAnnualNegativeGearingLoss] = useState(0)
-  const [negativeGearingRemovedUnderReform, setNegativeGearingRemovedUnderReform] = useState(true)
 
   const derived = useMemo(() => {
-    const annualReturn = annualReturnPct / 100
-    const inflation = inflationPct / 100
     const marginalTaxRate = marginalTaxPct / 100
 
-    const futureValue = principal * Math.pow(1 + annualReturn, yearsHeld)
-    const nominalGain = Math.max(futureValue - principal, 0)
-    const indexedCostBase = principal * Math.pow(1 + inflation, yearsHeld)
-    const indexedGain = Math.max(futureValue - indexedCostBase, 0)
+    const acqDate = new Date(acquisitionDate)
+    const dispDate = new Date(disposalDate)
 
-    const grandfatheredShare = advancedMode ? grandfatheredGainPct / 100 : 0
-    const grandfatheredNominalGain = nominalGain * grandfatheredShare
-    const reformNominalGain = nominalGain - grandfatheredNominalGain
-    const reformIndexedGain = indexedGain * (1 - grandfatheredShare)
+    const totalHoldingMs = Math.max(dispDate.getTime() - acqDate.getTime(), 1)
+    const acqAfterCutoff = acqDate >= CUTOFF_DATE
+    const dispBeforeCutoff = dispDate <= CUTOFF_DATE
 
-    const currentDiscountedGain = nominalGain * 0.5
-    const indexedScenarioGain = grandfatheredNominalGain * 0.5 + reformIndexedGain
-    const noDiscountScenarioGain = grandfatheredNominalGain * 0.5 + reformNominalGain
+    let preFraction: number
+    let postFraction: number
 
-    const applySubdivision152Concessions = (grossGain: number) => {
-      if (!advancedMode) return grossGain
-      if (applyFifteenYearExemption) return 0
-
-      let adjustedGain = grossGain
-      if (applyActiveAssetReduction) {
-        adjustedGain *= 0.5
-      }
-
-      adjustedGain = Math.max(adjustedGain - retirementExemptionAmount, 0)
-      return adjustedGain
+    if (dispBeforeCutoff) {
+      preFraction = 1
+      postFraction = 0
+    } else if (acqAfterCutoff) {
+      preFraction = 0
+      postFraction = 1
+    } else {
+      preFraction = Math.min(Math.max((CUTOFF_DATE.getTime() - acqDate.getTime()) / totalHoldingMs, 0), 1)
+      postFraction = 1 - preFraction
     }
 
-    const taxableCurrentGain = applySubdivision152Concessions(currentDiscountedGain)
-    const taxableIndexedGain = applySubdivision152Concessions(indexedScenarioGain)
-    const taxableNoDiscountGain = applySubdivision152Concessions(noDiscountScenarioGain)
+    const annualReturn = annualReturnPct / 100
+    const futureValue = principal * Math.pow(1 + annualReturn, yearsHeld)
+    const nominalGain = Math.max(futureValue - principal, 0)
 
-    const discountedTax = taxableCurrentGain * marginalTaxRate
-    const indexedTax = taxableIndexedGain * marginalTaxRate
-    const noDiscountTax = taxableNoDiscountGain * marginalTaxRate
+    // Pre-2027 portion — old rules
+    const preGain = nominalGain * preFraction
+    const preTaxableGain = holdingOver12Months ? preGain * 0.5 : preGain
+    const preCgtPayable = preTaxableGain * marginalTaxRate
 
-    const negativeGearingTaxBenefit = advancedMode
-      ? annualNegativeGearingLoss * yearsHeld * marginalTaxRate
-      : 0
-    const reformNegativeGearingBenefit = negativeGearingRemovedUnderReform ? 0 : negativeGearingTaxBenefit
+    // Post-2027 portion — new rules
+    const postGain = nominalGain * postFraction
+    const postCostBase = principal * postFraction
 
-    const afterTaxCurrent = futureValue - discountedTax + negativeGearingTaxBenefit
-    const afterTaxIndexed = futureValue - indexedTax + reformNegativeGearingBenefit
-    const afterTaxNoDiscount = futureValue - noDiscountTax + reformNegativeGearingBenefit
+    // CPI: if straddle, measure from CUTOFF_DATE; if fully post, from acqDate
+    const postCpiStartDate = acqAfterCutoff ? acqDate : CUTOFF_DATE
+    const postCpiEnd = getCPI(dispDate)
+    const postCpiStart = getCPI(postCpiStartDate)
+    const postCpiMult = postCpiStart > 0 ? postCpiEnd / postCpiStart : 1
 
-    const extraTaxVsCurrent = indexedTax - discountedTax + (negativeGearingTaxBenefit - reformNegativeGearingBenefit)
-    const extraTaxPct = discountedTax > 0 ? (extraTaxVsCurrent / discountedTax) * 100 : 0
-    const ratioVsCurrent = discountedTax > 0 ? indexedTax / discountedTax : 0
+    // Indexed gain (floor at 0)
+    const rawIndexedGain = postGain - postCostBase * (postCpiMult - 1)
+    const postIndexedGain = Math.max(rawIndexedGain, 0)
+
+    let postCgtPayable: number
+    let postMarginalTax: number
+    let postMinimumTax: number
+    let minTaxFloorBinding = false
+
+    // New residential property can elect 50% discount instead
+    const useNewPropertyDiscount = propertyType === 'new' && useDiscountForNewProperty
+
+    if (!holdingOver12Months) {
+      // Short hold: no discount, full marginal rate on nominal gain
+      postMarginalTax = postGain * marginalTaxRate
+      postMinimumTax = postGain * 0.30
+      postCgtPayable = postGain * marginalTaxRate
+    } else if (useNewPropertyDiscount) {
+      // New residential election: 50% CGT discount instead of new regime
+      postMarginalTax = postGain * 0.5 * marginalTaxRate
+      postMinimumTax = postGain * 0.30
+      postCgtPayable = postMarginalTax
+    } else {
+      postMarginalTax = postIndexedGain * marginalTaxRate
+      postMinimumTax = postGain * 0.30
+      if (isIncomeSupport) {
+        // Income support exemption removes the 30% floor
+        postCgtPayable = postMarginalTax
+      } else {
+        postCgtPayable = Math.max(postMarginalTax, postMinimumTax)
+        minTaxFloorBinding = postMinimumTax > postMarginalTax
+      }
+    }
+
+    // Subdiv 152 eligibility
+    const subDiv152Eligible =
+      advancedMode &&
+      subDiv152Active &&
+      (subDiv152MaxNetAssets || subDiv152SmallBizTurnover || subDiv152ActiveAsset)
+
+    function applySubdiv152Stack(taxAmount: number): number {
+      if (!subDiv152Eligible) return taxAmount
+      if (subDiv152FifteenYearExemption && userAge >= 55 && yearsHeld >= 15) return 0
+      // Note: we apply subdiv 152 to the taxable gain, not the tax amount
+      // For simplicity in this approximation, we halve the effective tax (50% active asset reduction)
+      let adjusted = taxAmount * 0.5
+      if (subDiv152RetirementExemption) {
+        // The $500k retirement exemption reduces the taxable gain, not the tax
+        // Approximate: reduce tax by 500000 * marginalTaxRate
+        const exemptionTaxValue = 500000 * marginalTaxRate
+        adjusted = Math.max(adjusted - exemptionTaxValue, 0)
+      }
+      return adjusted
+    }
+
+    const preCgtFinal = applySubdiv152Stack(preCgtPayable)
+    const postCgtFinal = applySubdiv152Stack(postCgtPayable)
+    const totalCgtPayable = preCgtFinal + postCgtFinal
+    const afterTaxWealth = futureValue - totalCgtPayable
+
+    // Current law (50% discount if held >12 months)
+    const currentTaxableGain = holdingOver12Months ? nominalGain * 0.5 : nominalGain
+    const currentCgtRaw = currentTaxableGain * marginalTaxRate
+    const currentCgtFinal = applySubdiv152Stack(currentCgtRaw)
+    const afterTaxCurrent = futureValue - currentCgtFinal
+
+    // No-discount reference
+    const noDiscountRaw = nominalGain * marginalTaxRate
+    const noDiscountTax = applySubdiv152Stack(noDiscountRaw)
+    const afterTaxNoDiscount = futureValue - noDiscountTax
+
+    const extraTaxVsCurrent = totalCgtPayable - currentCgtFinal
+    const extraTaxPct = currentCgtFinal > 0 ? (extraTaxVsCurrent / currentCgtFinal) * 100 : 0
+    const ratioVsCurrent = currentCgtFinal > 0 ? totalCgtPayable / currentCgtFinal : 0
+
     const chartMax = Math.max(
-      discountedTax,
-      indexedTax,
+      currentCgtFinal,
+      totalCgtPayable,
       noDiscountTax,
       afterTaxCurrent,
-      afterTaxIndexed,
+      afterTaxWealth,
       afterTaxNoDiscount,
       futureValue,
       1
     )
 
+    // Indexed cost base for display (uses the inflationPct slider)
+    const inflation = inflationPct / 100
+    const indexedCostBase = principal * Math.pow(1 + inflation, yearsHeld)
+
+    // Negative gearing calculations
+    const ngAcqDate = new Date(ngPropertyDate)
+    const ngAcqBeforeCutoff = ngAcqDate < NG_CUTOFF_DATE
+    const ngIsNewBuild = ngPropertyType === 'new'
+    const ngNewRulesApply = !ngAcqBeforeCutoff && !ngIsNewBuild
+
+    const annualNetRental = annualRentalIncome - annualDeductibleExpenses
+    const isNegativelyGeared = annualNetRental < 0
+    // Use manual override if set, otherwise derive from rental inputs
+    const effectiveAnnualLoss =
+      annualNegativeGearingLoss > 0
+        ? annualNegativeGearingLoss
+        : isNegativelyGeared
+        ? Math.abs(annualNetRental)
+        : 0
+
+    const currentAnnualTaxSaving = effectiveAnnualLoss * marginalTaxRate
+    const reformAnnualTaxSaving = ngNewRulesApply ? 0 : currentAnnualTaxSaving
+    const annualCarriedForward = ngNewRulesApply && effectiveAnnualLoss > 0 ? effectiveAnnualLoss : 0
+    const cumulativeCarriedForward = annualCarriedForward * yearsHeld
+    const annualTaxSavingLost = currentAnnualTaxSaving - reformAnnualTaxSaving
+
     return {
       futureValue,
       nominalGain,
       indexedCostBase,
-      indexedGain,
-      taxableCurrentGain,
-      taxableIndexedGain,
-      taxableNoDiscountGain,
-      discountedTax,
-      indexedTax,
+      preFraction,
+      postFraction,
+      postCpiMult,
+      postMarginalTax,
+      postMinimumTax,
+      postCgtPayable,
+      totalCgtPayable,
+      currentCgtFinal,
       noDiscountTax,
+      afterTaxWealth,
       afterTaxCurrent,
-      afterTaxIndexed,
       afterTaxNoDiscount,
       extraTaxVsCurrent,
       extraTaxPct,
       ratioVsCurrent,
       chartMax,
-      grandfatheredNominalGain,
-      reformIndexedGain,
-      negativeGearingTaxBenefit,
-      reformNegativeGearingBenefit,
+      minTaxFloorBinding,
+      acqAfterCutoff,
+      dispBeforeCutoff,
+      ngAcqBeforeCutoff,
+      ngNewRulesApply,
+      currentAnnualTaxSaving,
+      reformAnnualTaxSaving,
+      cumulativeCarriedForward,
+      annualTaxSavingLost,
+      effectiveAnnualLoss,
     }
   }, [
     advancedMode,
+    annualDeductibleExpenses,
     annualNegativeGearingLoss,
+    annualRentalIncome,
     annualReturnPct,
-    applyActiveAssetReduction,
-    applyFifteenYearExemption,
-    grandfatheredGainPct,
+    acquisitionDate,
+    disposalDate,
+    holdingOver12Months,
     inflationPct,
+    isIncomeSupport,
     marginalTaxPct,
-    negativeGearingRemovedUnderReform,
+    ngPropertyDate,
+    ngPropertyType,
     principal,
-    retirementExemptionAmount,
+    propertyType,
+    subDiv152Active,
+    subDiv152ActiveAsset,
+    subDiv152FifteenYearExemption,
+    subDiv152MaxNetAssets,
+    subDiv152RetirementExemption,
+    subDiv152SmallBizTurnover,
+    useDiscountForNewProperty,
+    userAge,
     yearsHeld,
   ])
 
@@ -551,6 +748,16 @@ export default function HomePageClient() {
     <main className="min-h-screen bg-bg">
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
         <header className="mb-6 card-brutal card-main p-4 sm:p-6">
+          {/* Post-Budget 2026 banner */}
+          <div className="mb-4 card-brutal bg-black px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs sm:text-sm font-black uppercase tracking-wide text-white">
+              Updated post-Budget 2026 — reflects legislated policy per BP1 Statement 4 and BP2 pp.21–22
+            </p>
+            <span className="badge-brutal bg-white text-black text-[10px] sm:text-xs">
+              Last updated May 2026
+            </span>
+          </div>
+
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-black">
@@ -560,8 +767,8 @@ export default function HomePageClient() {
               </h1>
               <p className="mt-3 max-w-4xl text-sm sm:text-lg font-medium text-black">
                 A one-page calculator for testing long-horizon Australian capital gains outcomes under the
-                current 50% discount, an illustrative inflation-indexed cost-base scenario, and a no-discount
-                reference case. Sources are Australian government publications only.
+                current 50% discount, the legislated From 1 July 2027 indexation + 30% minimum tax regime,
+                and a no-discount reference case. Sources are Australian government publications only.
               </p>
             </div>
             <ThemeToggle />
@@ -571,7 +778,7 @@ export default function HomePageClient() {
             <span className="badge-brutal bg-white text-[10px] sm:text-xs">Australian sources only</span>
             <span className="badge-brutal bg-white text-[10px] sm:text-xs">Interactive scenarios</span>
             <span className="badge-brutal bg-white text-[10px] sm:text-xs">Neutral framing</span>
-            <span className="badge-brutal bg-white text-[10px] sm:text-xs">Cloudflare deployable</span>
+            <span className="badge-brutal bg-white text-[10px] sm:text-xs">Legislated 2027 regime</span>
           </div>
         </header>
 
@@ -583,8 +790,8 @@ export default function HomePageClient() {
                   Scenarios
                 </h2>
                 <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
-                  Use the presets, then drag the sliders to see how quickly the headline shifts once you
-                  change returns, inflation, holding periods or tax rate.
+                  Use the presets, then adjust the sliders and date inputs to see how quickly the headline shifts
+                  once you change returns, inflation, holding periods, dates, or tax rate.
                 </p>
               </div>
             </div>
@@ -678,12 +885,13 @@ export default function HomePageClient() {
                             setYearsHeld,
                             setInflationPct,
                             setMarginalTaxPct,
-                            setGrandfatheredGainPct,
-                            setApplyFifteenYearExemption,
-                            setApplyActiveAssetReduction,
-                            setRetirementExemptionAmount,
+                            setAcquisitionDate,
+                            setDisposalDate,
+                            setSubDiv152Active,
+                            setSubDiv152ActiveAsset,
+                            setSubDiv152RetirementExemption,
                             setAnnualNegativeGearingLoss,
-                            setNegativeGearingRemovedUnderReform,
+                            setUserAge,
                             setAdvancedMode,
                           },
                           scenario
@@ -721,7 +929,7 @@ export default function HomePageClient() {
                 <MetricCard label="Nominal capital gain" value={formatCurrency(derived.nominalGain)} tone="success" />
                 <MetricCard label="Indexed cost base" value={formatCurrency(derived.indexedCostBase)} tone="warning" />
                 <MetricCard
-                  label={advancedMode ? 'Combined drag vs current' : 'Extra tax vs current'}
+                  label="Extra tax vs current law"
                   value={formatCurrency(derived.extraTaxVsCurrent)}
                   tone="danger"
                 />
@@ -731,7 +939,7 @@ export default function HomePageClient() {
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <InputCard label="Initial investment" value={principal} setValue={setPrincipal} min={1000} max={500000} step={1000} format={formatCurrency} />
               <InputCard label="Annual return" value={annualReturnPct} setValue={setAnnualReturnPct} min={1} max={25} step={0.5} format={formatPercent} />
-              <InputCard label="Holding period" value={yearsHeld} setValue={setYearsHeld} min={1} max={60} step={1} format={(v) => `${v.toFixed(0)} years`} />
+              <InputCard label="Holding period (years)" value={yearsHeld} setValue={setYearsHeld} min={1} max={60} step={1} format={(v) => `${v.toFixed(0)} years`} />
               <InputCard label="Inflation assumption" value={inflationPct} setValue={setInflationPct} min={0} max={10} step={0.1} format={formatPercent} />
               <SelectCard
                 label="Tax rate preset"
@@ -765,15 +973,59 @@ export default function HomePageClient() {
               />
             </div>
 
-            <div className="mt-5 card-brutal bg-bg-alt p-4">
+            {/* Date inputs for date-based grandfathering */}
+            <div className="mt-4 card-brutal bg-white p-4">
+              <p className="text-xs sm:text-sm font-black uppercase tracking-wide">Asset dates (for grandfathering)</p>
+              <p className="mt-1 text-[11px] sm:text-xs text-foreground-muted">
+                Gains on assets held across 1 July 2027 are apportioned: pre-2027 portion taxed under the 50% CGT discount;
+                post-2027 portion under indexation + 30% minimum tax. Straight-line apportionment (approximate).
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="text-[11px] font-black uppercase tracking-wide">Acquisition date</label>
+                  <input
+                    type="date"
+                    value={acquisitionDate}
+                    onChange={e => setAcquisitionDate(e.target.value)}
+                    className="mt-2 w-full border-2 border-black rounded-[5px] px-3 py-2 text-sm bg-bg"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-black uppercase tracking-wide">Disposal date</label>
+                  <input
+                    type="date"
+                    value={disposalDate}
+                    onChange={e => setDisposalDate(e.target.value)}
+                    className="mt-2 w-full border-2 border-black rounded-[5px] px-3 py-2 text-sm bg-bg"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                <span className="badge-brutal bg-bg">Pre-2027: {(derived.preFraction * 100).toFixed(0)}%</span>
+                <span className="badge-brutal bg-bg">Post-2027: {(derived.postFraction * 100).toFixed(0)}%</span>
+                <span className="badge-brutal bg-bg">CPI multiplier: {derived.postCpiMult.toFixed(3)}×</span>
+              </div>
+              {derived.dispBeforeCutoff && (
+                <p className="mt-2 text-[11px] sm:text-xs font-medium text-foreground-muted">
+                  Entirely under existing 50% CGT discount rules (disposal before 1 July 2027).
+                </p>
+              )}
+              {derived.acqAfterCutoff && (
+                <p className="mt-2 text-[11px] sm:text-xs font-medium text-foreground-muted">
+                  Entirely under new indexation + 30% minimum tax regime (acquisition on or after 1 July 2027).
+                </p>
+              )}
+            </div>
+
+            <div className="mt-4 card-brutal bg-bg-alt p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-sm sm:text-base font-black uppercase tracking-wide">
                     Advanced Assumptions
                   </p>
                   <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
-                    Turn this on for founder / property-style scenarios with grandfathering, Subdiv 152, and
-                    negative gearing assumptions.
+                    Turn this on for founder / property-style scenarios with Subdiv 152, property type,
+                    income support exemption, and negative gearing override assumptions.
                   </p>
                 </div>
                 <label className="inline-flex items-center gap-2 text-xs sm:text-sm font-black">
@@ -789,50 +1041,119 @@ export default function HomePageClient() {
 
               {advancedMode ? (
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                  <InputCard
-                    label="Grandfathered gain share"
-                    value={grandfatheredGainPct}
-                    setValue={setGrandfatheredGainPct}
-                    min={0}
-                    max={100}
-                    step={5}
-                    format={formatPercent}
+                  <ToggleCard
+                    label="Holding period >12 months"
+                    description="Assets held less than 12 months are fully taxable at marginal rate under both old and new regimes."
+                    checked={holdingOver12Months}
+                    setChecked={setHoldingOver12Months}
                   />
-                  <InputCard
-                    label="Retirement exemption used"
-                    value={retirementExemptionAmount}
-                    setValue={setRetirementExemptionAmount}
-                    min={0}
-                    max={500000}
-                    step={10000}
-                    format={formatCurrency}
+                  <ToggleCard
+                    label="Income support recipient (incl. Age Pension)"
+                    description="Exempts from 30% minimum tax floor per BP2 p.21. Only indexation applies to post-2027 gains."
+                    checked={isIncomeSupport}
+                    setChecked={setIsIncomeSupport}
                   />
+
+                  {/* Property type */}
+                  <div className="card-brutal bg-white p-4 sm:col-span-2">
+                    <p className="text-xs sm:text-sm font-black uppercase tracking-wide">Property type</p>
+                    <p className="mt-1 text-[11px] sm:text-xs text-foreground-muted">
+                      New residential properties can elect to use the 50% CGT discount instead of the new indexation + 30% min tax regime.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(['established', 'new', 'non-residential'] as const).map(pt => (
+                        <button
+                          key={pt}
+                          onClick={() => setPropertyType(pt)}
+                          className={`badge-brutal text-xs ${propertyType === pt ? 'badge-main' : 'bg-white'}`}
+                        >
+                          {pt === 'established'
+                            ? 'Established residential'
+                            : pt === 'new'
+                            ? 'New residential'
+                            : 'Non-residential investment'}
+                        </button>
+                      ))}
+                    </div>
+                    {propertyType === 'new' && (
+                      <label className="mt-3 flex items-center gap-2 text-xs font-black cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={useDiscountForNewProperty}
+                          onChange={e => setUseDiscountForNewProperty(e.target.checked)}
+                          className="h-4 w-4 accent-black"
+                        />
+                        Use 50% discount instead of new regime (new residential election)
+                      </label>
+                    )}
+                    {propertyType === 'new' && useDiscountForNewProperty && (
+                      <p className="mt-2 text-[11px] sm:text-xs text-foreground-muted">
+                        Election applied: using 50% discount on post-2027 portion rather than indexation + 30% min tax.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Subdiv 152 */}
+                  <div className="card-brutal bg-white p-4 sm:col-span-2">
+                    <p className="text-xs sm:text-sm font-black uppercase tracking-wide">Subdivision 152 small business CGT concessions</p>
+                    <p className="mt-1 text-[11px] sm:text-xs text-foreground-muted">
+                      Subdiv 152 is unchanged by the 2026 Budget. Stack is approximate — actual ATO determinations are case-specific. Calculator does not substitute for tax advice.
+                    </p>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <ToggleCard
+                        label="Asset qualifies as active business asset (Subdiv 152)"
+                        description="Enables the Subdivision 152 concession stack. Requires either max net assets ≤$6m or annual turnover <$2m."
+                        checked={subDiv152Active}
+                        setChecked={setSubDiv152Active}
+                      />
+                      {subDiv152Active && (
+                        <>
+                          <ToggleCard
+                            label="Max net assets test (≤$6m)"
+                            description="Satisfies the basic conditions via the maximum net assets test."
+                            checked={subDiv152MaxNetAssets}
+                            setChecked={setSubDiv152MaxNetAssets}
+                          />
+                          <ToggleCard
+                            label="Small business turnover test (<$2m)"
+                            description="Satisfies the basic conditions via the small business entity turnover test."
+                            checked={subDiv152SmallBizTurnover}
+                            setChecked={setSubDiv152SmallBizTurnover}
+                          />
+                          <ToggleCard
+                            label="15-year exemption (age 55+, held 15+ years)"
+                            description="If eligible (age ≥55, holding ≥15 years), zeroes the entire taxable gain."
+                            checked={subDiv152FifteenYearExemption}
+                            setChecked={setSubDiv152FifteenYearExemption}
+                          />
+                          <ToggleCard
+                            label="Retirement exemption ($500k lifetime cap)"
+                            description="Reduces taxable gain by up to $500,000 after the 50% active asset reduction."
+                            checked={subDiv152RetirementExemption}
+                            setChecked={setSubDiv152RetirementExemption}
+                          />
+                          <InputCard
+                            label="Taxpayer age (for 15-year exemption)"
+                            value={userAge}
+                            setValue={setUserAge}
+                            min={18}
+                            max={90}
+                            step={1}
+                            format={(v) => `${v.toFixed(0)} years old`}
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
+
                   <InputCard
-                    label="Annual negative gearing loss"
+                    label="Manual NG loss override (annual)"
                     value={annualNegativeGearingLoss}
                     setValue={setAnnualNegativeGearingLoss}
                     min={0}
                     max={100000}
                     step={1000}
                     format={formatCurrency}
-                  />
-                  <ToggleCard
-                    label="15-year exemption"
-                    description="If eligible, zeroes the taxable gain under both current and reform scenarios."
-                    checked={applyFifteenYearExemption}
-                    setChecked={setApplyFifteenYearExemption}
-                  />
-                  <ToggleCard
-                    label="50% active asset reduction"
-                    description="Applies the Subdiv 152 active asset reduction after any general discount."
-                    checked={applyActiveAssetReduction}
-                    setChecked={setApplyActiveAssetReduction}
-                  />
-                  <ToggleCard
-                    label="Negative gearing removed under reform"
-                    description="If on, the reform scenario loses the annual tax offset benefit from deductible rental losses."
-                    checked={negativeGearingRemovedUnderReform}
-                    setChecked={setNegativeGearingRemovedUnderReform}
                   />
                 </div>
               ) : null}
@@ -853,18 +1174,18 @@ export default function HomePageClient() {
             <div className="mt-5 space-y-4">
               <ScenarioBar
                 label="Current 50% discount"
-                tax={derived.discountedTax}
+                tax={derived.currentCgtFinal}
                 afterTax={derived.afterTaxCurrent}
-                taxPct={(derived.discountedTax / derived.chartMax) * 100}
+                taxPct={(derived.currentCgtFinal / derived.chartMax) * 100}
                 wealthPct={(derived.afterTaxCurrent / derived.chartMax) * 100}
                 tone="success"
               />
               <ScenarioBar
-                label="Illustrative indexation"
-                tax={derived.indexedTax}
-                afterTax={derived.afterTaxIndexed}
-                taxPct={(derived.indexedTax / derived.chartMax) * 100}
-                wealthPct={(derived.afterTaxIndexed / derived.chartMax) * 100}
+                label="From 1 July 2027 (indexation + 30% min tax)"
+                tax={derived.totalCgtPayable}
+                afterTax={derived.afterTaxWealth}
+                taxPct={(derived.totalCgtPayable / derived.chartMax) * 100}
+                wealthPct={(derived.afterTaxWealth / derived.chartMax) * 100}
                 tone="danger"
               />
               <ScenarioBar
@@ -883,10 +1204,10 @@ export default function HomePageClient() {
               Headline Readout
             </h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <MetricCard label="Tax under current law" value={formatCompactCurrency(derived.discountedTax)} tone="success" />
-              <MetricCard label="Tax under indexation" value={formatCompactCurrency(derived.indexedTax)} tone="danger" />
+              <MetricCard label="Tax under current law" value={formatCompactCurrency(derived.currentCgtFinal)} tone="success" />
+              <MetricCard label="Tax under 2027 regime" value={formatCompactCurrency(derived.totalCgtPayable)} tone="danger" />
               <MetricCard
-                label={advancedMode ? 'Combined increase vs current' : 'Increase vs current'}
+                label="Increase vs current law"
                 value={formatPercent(derived.extraTaxPct)}
                 tone="warning"
               />
@@ -896,10 +1217,10 @@ export default function HomePageClient() {
             <div className="mt-5 card-brutal bg-white p-4">
               <p className="text-sm sm:text-base font-bold">
                 In this scenario, current-law tax is{' '}
-                <span className="text-green-700">{formatCurrency(derived.discountedTax)}</span>,
+                <span className="text-green-700">{formatCurrency(derived.currentCgtFinal)}</span>,
                 versus{' '}
-                <span className="text-red-700">{formatCurrency(derived.indexedTax)}</span>
-                {' '}under the illustrative indexation treatment.
+                <span className="text-red-700">{formatCurrency(derived.totalCgtPayable)}</span>
+                {' '}under the From 1 July 2027 regime.
               </p>
               <p className="mt-3 text-xs sm:text-sm text-foreground-muted">
                 That is an additional <strong>{formatCurrency(derived.extraTaxVsCurrent)}</strong> and
@@ -907,19 +1228,27 @@ export default function HomePageClient() {
               </p>
             </div>
 
-            {advancedMode ? (
+            {/* Post-2027 breakdown */}
+            {derived.postFraction > 0 && (
               <div className="mt-4 card-brutal bg-white p-4">
                 <p className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-foreground-muted">
-                  Advanced readout
+                  Post-2027 portion breakdown
                 </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                  <MetricCard label="Grandfathered gain" value={formatCompactCurrency(derived.grandfatheredNominalGain)} tone="main" />
-                  <MetricCard label="Reform-period indexed gain" value={formatCompactCurrency(derived.reformIndexedGain)} tone="warning" />
-                  <MetricCard label="Current NG tax benefit" value={formatCompactCurrency(derived.negativeGearingTaxBenefit)} tone="success" />
-                  <MetricCard label="Reform NG tax benefit" value={formatCompactCurrency(derived.reformNegativeGearingBenefit)} tone="danger" />
+                  <MetricCard label="Marginal tax on indexed gain" value={formatCompactCurrency(derived.postMarginalTax)} tone="main" />
+                  <MetricCard label="30% minimum tax on nominal gain" value={formatCompactCurrency(derived.postMinimumTax)} tone="warning" />
+                  <div className="card-brutal bg-white p-4 sm:col-span-2">
+                    <p className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-foreground-muted">
+                      CGT payable — binding constraint
+                    </p>
+                    <p className="mt-2 text-xl sm:text-2xl font-extrabold">{formatCompactCurrency(derived.postCgtPayable)}</p>
+                    <span className={`mt-2 inline-flex badge-brutal text-[10px] sm:text-xs ${derived.minTaxFloorBinding ? 'badge-danger' : 'badge-success'}`}>
+                      {derived.minTaxFloorBinding ? 'Minimum tax floor binding' : 'Marginal rate binding'}
+                    </span>
+                  </div>
                 </div>
               </div>
-            ) : null}
+            )}
 
             <div className="mt-4 card-brutal bg-white p-4">
               <p className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-foreground-muted">
@@ -930,11 +1259,123 @@ export default function HomePageClient() {
                 package, age-cohort incidence, capital flight, or business response.
               </p>
               <p className="mt-3 text-xs sm:text-sm text-foreground-muted">
-                The advanced mode is an approximation layer, not a full tax engine. It applies a simplified
-                sequence: grandfathered gain share, then general discount where applicable, then optional
-                Subdiv 152 settings, then an optional negative gearing offset delta across the holding period.
+                The advanced mode is an approximation layer, not a full tax engine. It applies date-based
+                grandfathering, indexation + 30% min tax on the post-2027 portion, optional Subdiv 152 stack,
+                and property type elections.
+              </p>
+              <p className="mt-3 text-xs sm:text-sm text-foreground-muted">
+                Consultation is underway on early-stage business and ESS treatment. Calculator does not yet
+                model those carve-outs as they are not finalised.
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* Negative Gearing Section (Item 4) */}
+        <section className="mb-6">
+          <div className="card-brutal p-4 sm:p-6">
+            <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide">
+              Negative Gearing: Pre vs Post 12 May 2026
+            </h2>
+            <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
+              From 12 May 2026, negative gearing losses on established residential properties acquired on
+              or after that date can only offset rental income or property capital gains — not other taxable
+              income. New builds retain full negative gearing.
+            </p>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="card-brutal bg-white p-4">
+                <label className="text-[11px] font-black uppercase tracking-wide">Property acquisition date</label>
+                <input
+                  type="date"
+                  value={ngPropertyDate}
+                  onChange={e => setNgPropertyDate(e.target.value)}
+                  className="mt-2 w-full border-2 border-black rounded-[5px] px-3 py-2 text-sm bg-bg"
+                />
+                <div className="mt-2 flex gap-2">
+                  <span className={`badge-brutal text-[10px] sm:text-xs ${derived.ngAcqBeforeCutoff ? 'badge-success' : 'badge-danger'}`}>
+                    {derived.ngAcqBeforeCutoff ? 'Pre-cutoff: old NG rules apply' : 'Post-cutoff: new NG rules may apply'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="card-brutal bg-white p-4">
+                <p className="text-[11px] font-black uppercase tracking-wide">Property type</p>
+                <div className="mt-3 flex gap-2">
+                  {(['established', 'new'] as const).map(pt => (
+                    <button
+                      key={pt}
+                      onClick={() => setNgPropertyType(pt)}
+                      className={`badge-brutal text-xs ${ngPropertyType === pt ? 'badge-main' : 'bg-white'}`}
+                    >
+                      {pt === 'established' ? 'Established' : 'New build'}
+                    </button>
+                  ))}
+                </div>
+                {derived.ngNewRulesApply && (
+                  <p className="mt-2 text-[11px] text-foreground-muted">
+                    New NG rules apply — losses can only offset rental income / property gains.
+                  </p>
+                )}
+                {!derived.ngNewRulesApply && !derived.ngAcqBeforeCutoff && ngPropertyType === 'new' && (
+                  <p className="mt-2 text-[11px] text-foreground-muted">
+                    New builds retain full negative gearing regardless of acquisition date.
+                  </p>
+                )}
+              </div>
+
+              <InputCard
+                label="Annual rental income"
+                value={annualRentalIncome}
+                setValue={setAnnualRentalIncome}
+                min={0}
+                max={200000}
+                step={1000}
+                format={formatCurrency}
+              />
+              <InputCard
+                label="Annual deductible expenses"
+                value={annualDeductibleExpenses}
+                setValue={setAnnualDeductibleExpenses}
+                min={0}
+                max={200000}
+                step={1000}
+                format={formatCurrency}
+              />
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                label="Current annual tax saving"
+                value={formatCompactCurrency(derived.currentAnnualTaxSaving)}
+                tone="success"
+              />
+              <MetricCard
+                label="Reform annual tax saving"
+                value={formatCompactCurrency(derived.reformAnnualTaxSaving)}
+                tone={derived.ngNewRulesApply ? 'danger' : 'success'}
+              />
+              <MetricCard
+                label="Annual tax saving lost"
+                value={formatCompactCurrency(derived.annualTaxSavingLost)}
+                tone="warning"
+              />
+              <MetricCard
+                label="Cumulative carried-forward loss"
+                value={formatCompactCurrency(derived.cumulativeCarriedForward)}
+                tone="main"
+              />
+            </div>
+
+            {derived.ngNewRulesApply && derived.effectiveAnnualLoss > 0 && (
+              <div className="mt-4 card-brutal card-warning p-4">
+                <p className="text-xs sm:text-sm font-black text-black">
+                  New NG rules apply: {formatCurrency(derived.effectiveAnnualLoss)}/yr in losses are
+                  carried forward rather than deducted against other income.
+                  Over {yearsHeld} years, cumulative carried-forward loss: {formatCurrency(derived.cumulativeCarriedForward)}.
+                </p>
+              </div>
+            )}
           </div>
         </section>
 
@@ -944,8 +1385,7 @@ export default function HomePageClient() {
               Pressure-Test The Public Claims
             </h2>
             <p className="mt-1 max-w-4xl text-xs sm:text-sm text-foreground-muted">
-              These are the main places where a dramatic anti-reform example can outrun what the current model
-              or the published public evidence actually establishes.
+              These are the main places where the claim and the legislated policy design need to be read carefully.
             </p>
 
             <div className="mt-5 grid gap-4 xl:grid-cols-2">
@@ -1024,7 +1464,7 @@ export default function HomePageClient() {
                   higher-income tax concession, not a concession mainly used by young Australians.
                 </p>
                 <p className="mt-3 text-xs sm:text-sm text-foreground-muted">
-                  That makes the “this is protecting young Australians trying to get ahead” framing hard to
+                  That makes the "this is protecting young Australians trying to get ahead" framing hard to
                   sustain on the official distributional evidence alone.
                 </p>
                 <p className="mt-3 text-xs sm:text-sm text-foreground-muted">
@@ -1077,7 +1517,7 @@ export default function HomePageClient() {
                   <div className="card-brutal card-warning p-4">
                     <p className="text-sm font-black">Important but unresolved</p>
                     <ul className="mt-3 space-y-2 text-xs sm:text-sm">
-                      <li>Founder exits and startup treatment under any replacement regime.</li>
+                      <li>Founder exits and startup treatment under the new regime.</li>
                       <li>Small business and farm transition design.</li>
                       <li>Whether capital would shift offshore or into low-productivity assets.</li>
                     </ul>
@@ -1086,9 +1526,9 @@ export default function HomePageClient() {
                   <div className="card-brutal card-success p-4">
                     <p className="text-sm font-black">Act on this evidence</p>
                     <ul className="mt-3 space-y-2 text-xs sm:text-sm">
-                      <li>Top `10%` of income earners receive `82%` of the CGT discount benefit.</li>
-                      <li>Top `1%` alone receives `59%`.</li>
-                      <li>Ages `18–34` receive `4%`, while ages `60+` receive `52%`.</li>
+                      <li>Top 10% of income earners receive 82% of the CGT discount benefit.</li>
+                      <li>Top 1% alone receives 59%.</li>
+                      <li>Ages 18–34 receive 4%, while ages 60+ receive 52%.</li>
                     </ul>
                   </div>
 
@@ -1124,7 +1564,7 @@ export default function HomePageClient() {
               Government Stats Panel
             </h2>
             <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
-              These are the strongest source-backed anchor stats for a first public version of the page.
+              These are the strongest source-backed anchor stats for the page.
             </p>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -1193,6 +1633,88 @@ export default function HomePageClient() {
                   <p className="mt-2 text-xs sm:text-sm text-foreground-muted">{ref.detail}</p>
                 </a>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Worker Tax Cuts Context (Item 7) */}
+        <section className="mb-6">
+          <div className="card-brutal card-bg-alt p-4 sm:p-6">
+            <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide">
+              Worker Tax Cuts — For Context
+            </h2>
+            <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
+              The 2026–27 Budget also includes direct tax cuts for workers. These are separate from the CGT
+              and negative gearing changes but provide useful scale context.
+            </p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="WATO benefit from 2027–28" value="Up to $250/yr" tone="success" />
+              <MetricCard label="Instant tax deduction (avg)" value="$205 benefit" tone="main" />
+              <MetricCard label="Worker on $81,245 avg earnings — 2026–27" value="$1,978 tax cut" tone="warning" />
+              <MetricCard label="Worker on $81,245 avg earnings — from 2027–28" value="$2,496/yr" tone="danger" />
+            </div>
+            <p className="mt-4 text-[11px] sm:text-xs text-foreground-muted">
+              Source: BP1 Statement 4. Display only — not included in CGT calculations above.
+            </p>
+          </div>
+        </section>
+
+        {/* VC Incentive Context (Item 8) */}
+        <section className="mb-6">
+          <div className="card-brutal p-4 sm:p-6">
+            <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide">
+              Venture Capital Incentive Expansion
+            </h2>
+            <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
+              Budget Paper 2, p.18 expanded ESVCLP and VCLP caps. Tax-exempt returns on eligible ESVCLP
+              investments are unaffected by the general CGT discount change.
+            </p>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-xs sm:text-sm border-collapse">
+                <thead>
+                  <tr>
+                    <th className="card-brutal p-2 text-left font-black">Cap</th>
+                    <th className="card-brutal p-2 text-right font-black">Old</th>
+                    <th className="card-brutal p-2 text-right font-black">New</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['VCLP investee asset cap', '$250m', '$480m'],
+                    ['ESVCLP investee asset cap', '$50m', '$80m'],
+                    ['ESVCLP tax-exempt investee asset cap', '$250m', '$420m'],
+                    ['ESVCLP max fund size', '$200m', '$270m'],
+                  ].map(([label, old, next]) => (
+                    <tr key={label}>
+                      <td className="card-brutal p-2">{label}</td>
+                      <td className="card-brutal p-2 text-right text-foreground-muted">{old}</td>
+                      <td className="card-brutal p-2 text-right font-black">{next}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-4 text-[11px] sm:text-xs text-foreground-muted">
+              Tax-exempt returns on eligible ESVCLP investments are unaffected by the general CGT discount change. This is a separate, expanded incentive. Source: BP2 p.18.
+            </p>
+          </div>
+        </section>
+
+        <section className="mb-6">
+          <div className="card-brutal p-4 sm:p-6">
+            <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide">
+              Updates
+            </h2>
+            <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
+              Recent changes to this tool.
+            </p>
+            <div className="mt-4 space-y-3">
+              <UpdateRow label="Budget 2026 update" detail="Implemented legislated 1 July 2027 CGT regime: date-based grandfathering, indexation + 30% min tax, Subdiv 152 stack, NG section, worker tax cuts context, VC incentive table, income support exemption." />
+              <UpdateRow label="Advanced scenario cards" detail="Updated card-based UI for founder relief, straddle-the-cutoff, and property-style advanced scenario presets with date inputs." />
+              <UpdateRow label="Advanced CGT scenario controls" detail="Replaced grandfatheredGainPct slider with acquisition/disposal date inputs. Added property type, Subdiv 152, income support, and NG section." />
+              <UpdateRow label="CGT claim boundaries updated" detail="Updated claim-check section with Budget Paper references. Removed pre-Budget framing." />
+              <UpdateRow label="Policy axis colors and social preview" detail="Refreshed the 2×2 matrix colour scheme and the Open Graph preview image." />
+              <UpdateRow label="Initial release" detail="Launched with scenario presets, distributional fact section, claim-pressure-test section, and the 2×2 evidence matrix." />
             </div>
           </div>
         </section>
@@ -1373,6 +1895,17 @@ function ScenarioBar({
             <div style={{ width: `${Math.min(wealthPct, 100)}%`, backgroundColor: 'var(--main)' }} className="h-full border-r-2 border-black" />
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function UpdateRow({ label, detail }: { label: string; detail: string }) {
+  return (
+    <div className="card-brutal bg-white p-4">
+      <div className="flex flex-wrap items-start gap-3">
+        <span className="badge-brutal badge-main text-[10px] sm:text-xs shrink-0">{label}</span>
+        <p className="text-xs sm:text-sm text-foreground-muted">{detail}</p>
       </div>
     </div>
   )

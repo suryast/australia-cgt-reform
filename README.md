@@ -179,6 +179,15 @@ pnpm exec wrangler pages deploy out --project-name=cgt-compound-calculator
 - The detailed research framing for this repo is captured in:
   `docs/shaping/2026-05-05-aus-gov-dataset-plan.md`
 
+## Updates
+
+- **Add advanced scenario cards** — added card-based UI for the advanced CGT scenario presets
+- **Add advanced CGT scenario controls** — introduced controls for grandfathering, Subdivision 152, negative gearing offsets, and tax-rate presets in advanced assumptions mode
+- **Clarify CGT claim boundaries** — tightened language around what the claim-check section does and does not establish from public data
+- **Update policy axis colors and social preview image** — refreshed the 2x2 matrix colour scheme and the Open Graph preview image
+- **Document project reasoning and fix colored card backgrounds** — added reasoning prose to the README and fixed card background rendering
+- **Initial site** — launched the calculator with scenario presets, distributional fact section, claim-pressure-test section, and the 2x2 evidence matrix
+
 ## Notes
 
 - The calculator is a sensitivity tool, not tax or legal advice.
