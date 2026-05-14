@@ -52,6 +52,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="alternate" type="application/json" href="/.well-known/ai-context.json" title="AI context" />
+        <link rel="alternate" type="text/plain" href="/llms.txt" title="LLMs text" />
         <script
           dangerouslySetInnerHTML={{
             __html: `

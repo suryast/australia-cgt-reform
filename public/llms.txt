@@ -1,0 +1,33 @@
+# Australia CGT Reform Calculator
+
+This site is an interactive calculator and claim-check for Australia's capital gains tax reform debate.
+
+Primary URL:
+- Home: https://australia-cgt-reform-calculator.setiyaputra.me/
+- Agent context JSON: https://australia-cgt-reform-calculator.setiyaputra.me/.well-known/ai-context.json
+
+What the calculator does:
+- compares current 50% CGT discount treatment
+- compares an illustrative inflation-indexed alternative
+- compares a full nominal-taxation reference case
+- offers scenario presets and advanced assumptions for policy stress tests
+
+Main scenario presets:
+- Ambitious long hold
+- Balanced wealth builder
+- Moderate compounding path
+
+Advanced scenario presets:
+- Founder with Subdiv 152 relief
+- Straddle-the-cutoff investor
+- Property with NG offset
+
+How to interpret it:
+- It is a sensitivity tool, not tax or legal advice.
+- The reform settings are illustrative unless a final legislative package is specified.
+- The page also includes claim-check and evidence framing sections that are distinct from the raw calculator math.
+
+Related resources:
+- Claims monitor: https://factual-au.setiyaputra.me/
+- Matrix viewer: https://budget-2026-cgt-negative-gearing-matrix.pages.dev/
+- Source code: https://github.com/suryast/australia-cgt-reform

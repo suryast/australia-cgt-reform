@@ -1,0 +1,81 @@
+{
+  "name": "Australia CGT Reform Calculator",
+  "site": "CGT Compounding Calculator",
+  "version": "1.0",
+  "description": "An interactive calculator and claim-check for Australia's CGT reform debate, comparing current-law discount treatment, an inflation-indexed alternative, and a no-discount reference case across scenario presets and advanced assumptions.",
+  "entrypoints": {
+    "home": "https://australia-cgt-reform-calculator.setiyaputra.me/",
+    "llms": "https://australia-cgt-reform-calculator.setiyaputra.me/llms.txt"
+  },
+  "contentModel": {
+    "type": "interactive-calculator",
+    "primaryFunctions": [
+      "compare compounding outcomes under different tax treatments",
+      "stress-test policy claims with explicit assumptions",
+      "surface reference data about distributional and policy framing"
+    ],
+    "defaultScenarioPresets": [
+      "Ambitious long hold",
+      "Balanced wealth builder",
+      "Moderate compounding path"
+    ],
+    "advancedScenarioPresets": [
+      "Founder with Subdiv 152 relief",
+      "Straddle-the-cutoff investor",
+      "Property with NG offset"
+    ]
+  },
+  "assumptionsModel": {
+    "baseInputs": [
+      "principal",
+      "annual return",
+      "years held",
+      "inflation",
+      "marginal tax rate"
+    ],
+    "advancedInputs": [
+      "acquisition date",
+      "disposal date",
+      "Subdivision 152 settings",
+      "negative gearing loss",
+      "user age",
+      "tax-rate preset",
+      "property type"
+    ],
+    "interpretationNotes": [
+      "The calculator is a sensitivity tool, not tax or legal advice.",
+      "The reform comparison is illustrative unless and until a final legislative package exists.",
+      "Scenario labels such as realistic, optimistic, or exaggerated describe assumption quality, not certainty."
+    ]
+  },
+  "policySemantics": {
+    "comparisonModes": [
+      "current 50% CGT discount",
+      "illustrative inflation-indexed cost-base treatment",
+      "full nominal taxation with no discount"
+    ],
+    "claimCheckPurpose": "The page also evaluates which CGT and startup-related claims are directly supported by official public data and which remain rhetorical or assumption-driven.",
+    "evidenceVocabulary": [
+      "directly supported",
+      "illustrative",
+      "not yet proven"
+    ]
+  },
+  "relatedResources": {
+    "claimsMonitor": "https://factual-au.setiyaputra.me/",
+    "matrix": "https://budget-2026-cgt-negative-gearing-matrix.pages.dev/",
+    "repository": "https://github.com/suryast/australia-cgt-reform"
+  },
+  "agentGuidance": {
+    "preferredUse": [
+      "use the page for scenario-sensitive tax comparison, not as a final tax engine",
+      "read scenario names and assessment labels together with the assumptions behind them",
+      "treat the claim-check and evidence sections as separate from the pure compounding math"
+    ],
+    "doNotAssume": [
+      "Do not treat calculator outputs as personalised financial advice.",
+      "Do not infer enacted law from illustrative comparison settings.",
+      "Do not collapse claim-check evidence labels into definitive forecasts about behavioural effects."
+    ]
+  }
+}
