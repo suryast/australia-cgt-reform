@@ -28,12 +28,21 @@ export function Footer() {
         </a>
         <span aria-hidden="true" className="text-black/30">•</span>
         <a
-          href="https://github.com/suryast"
+          href="https://github.com/suryast/australia-cgt-reform"
           target="_blank"
           rel="noopener noreferrer"
           className="link-brutal"
         >
-          GitHub
+          Open source code
+        </a>
+        <span aria-hidden="true" className="text-black/30">•</span>
+        <a
+          href="https://factual-au.setiyaputra.me/dashboard"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="link-brutal"
+        >
+          Factual AU dashboard
         </a>
       </div>
       <p className="mt-3 text-center text-[9px] sm:text-xs text-black/40">
