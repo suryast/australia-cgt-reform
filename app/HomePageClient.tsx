@@ -1,8 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Footer } from '@/components/Footer'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import scenarioManifest from '../../shared/factual-au-scenario-manifest.json'
 
 type ScenarioKey = 'ambition' | 'balanced' | 'moderate'
 type PropertyType = 'established' | 'new' | 'non-residential'
@@ -50,6 +52,7 @@ type TaxRatePresetKey = 'lower' | 'middle' | 'upper' | 'top' | 'custom'
 
 const CUTOFF_DATE = new Date('2027-07-01T00:00:00.000Z')
 const NG_CUTOFF_DATE = new Date('2026-05-12T09:30:00.000Z') // 7:30pm AEST = UTC+10
+const PRE_CGT_DATE = new Date('1985-09-20T00:00:00.000Z')
 
 const TAX_RATE_PRESETS: Array<{
   key: TaxRatePresetKey
@@ -444,6 +447,231 @@ function formatPercent(value: number) {
   return `${value.toFixed(1)}%`
 }
 
+function parseNumberParam(value: string | null): number | null {
+  if (!value) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function parseBooleanParam(value: string | null): boolean | null {
+  if (!value) return null
+  if (value === '1' || value.toLowerCase() === 'true') return true
+  if (value === '0' || value.toLowerCase() === 'false') return false
+  return null
+}
+
+function parseDateParam(value: string | null): string | null {
+  if (!value) return null
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null
+}
+
+function findScenario(key: string | null) {
+  if (!key) return null
+  return SCENARIOS.find((scenario) => scenario.key === key) ?? null
+}
+
+function findAdvancedScenario(key: string | null) {
+  if (!key) return null
+  return ADVANCED_SCENARIOS.find((scenario) => scenario.key === key) ?? null
+}
+
+type CalculatorState = {
+  principal: number
+  annualReturnPct: number
+  yearsHeld: number
+  inflationPct: number
+  marginalTaxPct: number
+  taxRatePreset: TaxRatePresetKey
+  activeScenario: ScenarioKey
+  advancedMode: boolean
+  acquisitionDate: string
+  disposalDate: string
+  holdingOver12Months: boolean
+  isIncomeSupport: boolean
+  propertyType: PropertyType
+  useDiscountForNewProperty: boolean
+  subDiv152Active: boolean
+  subDiv152MaxNetAssets: boolean
+  subDiv152SmallBizTurnover: boolean
+  subDiv152FifteenYearExemption: boolean
+  subDiv152RetirementExemption: boolean
+  userAge: number
+  subDiv152ActiveAsset: boolean
+  ngPropertyDate: string
+  ngPropertyType: 'established' | 'new'
+  annualRentalIncome: number
+  annualDeductibleExpenses: number
+  otherTaxableIncome: number
+  annualNegativeGearingLoss: number
+  linkedCaseFileId: string | null
+}
+
+const SCENARIO_SCHEMA_VERSION = scenarioManifest.schemaVersion
+const SCENARIO_STATE_LIBRARY = scenarioManifest.scenarios as Record<string, Partial<CalculatorState>>
+
+function applyStatePatch(state: CalculatorState, patch: Partial<CalculatorState>) {
+  Object.assign(state, patch)
+}
+
+function resolveScenarioState(
+  scenarioId: string | null,
+  schemaVersion: number | null,
+) {
+  if (!scenarioId) return null
+  if (schemaVersion !== null && schemaVersion !== SCENARIO_SCHEMA_VERSION) return null
+  return SCENARIO_STATE_LIBRARY[scenarioId] ?? null
+}
+
+function buildCalculatorStateFromParams(searchParams: { get: (key: string) => string | null }): CalculatorState {
+  const initialScenario = SCENARIOS[0]
+  const state: CalculatorState = {
+    principal: initialScenario.principal,
+    annualReturnPct: initialScenario.annualReturnPct,
+    yearsHeld: initialScenario.yearsHeld,
+    inflationPct: initialScenario.inflationPct,
+    marginalTaxPct: initialScenario.marginalTaxPct,
+    taxRatePreset: 'top',
+    activeScenario: 'ambition',
+    advancedMode: false,
+    acquisitionDate: '2020-01-01',
+    disposalDate: '2030-01-01',
+    holdingOver12Months: true,
+    isIncomeSupport: false,
+    propertyType: 'non-residential',
+    useDiscountForNewProperty: false,
+    subDiv152Active: false,
+    subDiv152MaxNetAssets: false,
+    subDiv152SmallBizTurnover: false,
+    subDiv152FifteenYearExemption: false,
+    subDiv152RetirementExemption: false,
+    userAge: 45,
+    subDiv152ActiveAsset: false,
+    ngPropertyDate: '2026-01-01',
+    ngPropertyType: 'established',
+    annualRentalIncome: 30000,
+    annualDeductibleExpenses: 42000,
+    otherTaxableIncome: 100000,
+    annualNegativeGearingLoss: 0,
+    linkedCaseFileId: null,
+  }
+
+  const scenarioSchemaVersion = parseNumberParam(searchParams.get('schemaVersion'))
+  const linkedScenarioState = resolveScenarioState(
+    searchParams.get('scenarioId'),
+    scenarioSchemaVersion,
+  )
+  if (linkedScenarioState) applyStatePatch(state, linkedScenarioState)
+
+  const preset = findScenario(searchParams.get('preset'))
+  if (preset) {
+    state.activeScenario = preset.key
+    state.principal = preset.principal
+    state.annualReturnPct = preset.annualReturnPct
+    state.yearsHeld = preset.yearsHeld
+    state.inflationPct = preset.inflationPct
+    state.marginalTaxPct = preset.marginalTaxPct
+    state.taxRatePreset = 'custom'
+  }
+
+  const advancedPreset = findAdvancedScenario(searchParams.get('advancedPreset'))
+  if (advancedPreset) {
+    state.advancedMode = true
+    state.activeScenario = 'moderate'
+    state.taxRatePreset = 'custom'
+    state.principal = advancedPreset.principal
+    state.annualReturnPct = advancedPreset.annualReturnPct
+    state.yearsHeld = advancedPreset.yearsHeld
+    state.inflationPct = advancedPreset.inflationPct
+    state.marginalTaxPct = advancedPreset.marginalTaxPct
+    state.acquisitionDate = advancedPreset.acquisitionDate
+    state.disposalDate = advancedPreset.disposalDate
+    state.subDiv152Active = advancedPreset.subDiv152Active
+    state.subDiv152ActiveAsset = advancedPreset.subDiv152ActiveAsset
+    state.subDiv152RetirementExemption = advancedPreset.subDiv152RetirementExemption
+    state.annualNegativeGearingLoss = advancedPreset.annualNegativeGearingLoss
+    state.userAge = advancedPreset.userAge
+  }
+
+  const advancedModeParam = parseBooleanParam(searchParams.get('advanced'))
+  if (advancedModeParam !== null) state.advancedMode = advancedModeParam
+
+  const taxRatePresetParam = searchParams.get('taxRatePreset')
+  const taxRatePresetMatch = TAX_RATE_PRESETS.find((presetEntry) => presetEntry.key === taxRatePresetParam)
+  if (taxRatePresetMatch) {
+    state.taxRatePreset = taxRatePresetMatch.key
+    if (taxRatePresetMatch.key !== 'custom') {
+      state.marginalTaxPct = taxRatePresetMatch.value
+    }
+  }
+
+  const principalParam = parseNumberParam(searchParams.get('principal'))
+  if (principalParam !== null) state.principal = principalParam
+
+  const annualReturnParam = parseNumberParam(searchParams.get('annualReturnPct'))
+  if (annualReturnParam !== null) state.annualReturnPct = annualReturnParam
+
+  const yearsHeldParam = parseNumberParam(searchParams.get('yearsHeld'))
+  if (yearsHeldParam !== null) state.yearsHeld = yearsHeldParam
+
+  const inflationParam = parseNumberParam(searchParams.get('inflationPct'))
+  if (inflationParam !== null) state.inflationPct = inflationParam
+
+  const marginalTaxParam = parseNumberParam(searchParams.get('marginalTaxPct'))
+  if (marginalTaxParam !== null) {
+    state.marginalTaxPct = marginalTaxParam
+    state.taxRatePreset = 'custom'
+  }
+
+  const acquisitionDateParam = parseDateParam(searchParams.get('acquisitionDate'))
+  if (acquisitionDateParam) state.acquisitionDate = acquisitionDateParam
+
+  const disposalDateParam = parseDateParam(searchParams.get('disposalDate'))
+  if (disposalDateParam) state.disposalDate = disposalDateParam
+
+  const holdingPeriodParam = parseBooleanParam(searchParams.get('holdingOver12Months'))
+  if (holdingPeriodParam !== null) state.holdingOver12Months = holdingPeriodParam
+
+  const incomeSupportParam = parseBooleanParam(searchParams.get('isIncomeSupport'))
+  if (incomeSupportParam !== null) state.isIncomeSupport = incomeSupportParam
+
+  const propertyTypeParam = searchParams.get('propertyType')
+  if (propertyTypeParam === 'established' || propertyTypeParam === 'new' || propertyTypeParam === 'non-residential') {
+    state.propertyType = propertyTypeParam
+  }
+
+  const newPropertyDiscountParam = parseBooleanParam(searchParams.get('useDiscountForNewProperty'))
+  if (newPropertyDiscountParam !== null) state.useDiscountForNewProperty = newPropertyDiscountParam
+
+  const subDiv152ActiveParam = parseBooleanParam(searchParams.get('subDiv152Active'))
+  if (subDiv152ActiveParam !== null) state.subDiv152Active = subDiv152ActiveParam
+
+  const subDiv152MaxNetAssetsParam = parseBooleanParam(searchParams.get('subDiv152MaxNetAssets'))
+  if (subDiv152MaxNetAssetsParam !== null) state.subDiv152MaxNetAssets = subDiv152MaxNetAssetsParam
+
+  const subDiv152SmallBizTurnoverParam = parseBooleanParam(searchParams.get('subDiv152SmallBizTurnover'))
+  if (subDiv152SmallBizTurnoverParam !== null) state.subDiv152SmallBizTurnover = subDiv152SmallBizTurnoverParam
+
+  const subDiv152FifteenYearParam = parseBooleanParam(searchParams.get('subDiv152FifteenYearExemption'))
+  if (subDiv152FifteenYearParam !== null) state.subDiv152FifteenYearExemption = subDiv152FifteenYearParam
+
+  const subDiv152RetirementParam = parseBooleanParam(searchParams.get('subDiv152RetirementExemption'))
+  if (subDiv152RetirementParam !== null) state.subDiv152RetirementExemption = subDiv152RetirementParam
+
+  const subDiv152ActiveAssetParam = parseBooleanParam(searchParams.get('subDiv152ActiveAsset'))
+  if (subDiv152ActiveAssetParam !== null) state.subDiv152ActiveAsset = subDiv152ActiveAssetParam
+
+  const userAgeParam = parseNumberParam(searchParams.get('userAge'))
+  if (userAgeParam !== null) state.userAge = userAgeParam
+
+  const annualNegativeGearingLossParam = parseNumberParam(searchParams.get('annualNegativeGearingLoss'))
+  if (annualNegativeGearingLossParam !== null) state.annualNegativeGearingLoss = annualNegativeGearingLossParam
+
+  const linkedCaseFileIdParam = searchParams.get('caseFile')
+  if (linkedCaseFileIdParam) state.linkedCaseFileId = linkedCaseFileIdParam
+
+  return state
+}
+
 function applyScenario(setters: {
   setPrincipal: (v: number) => void
   setAnnualReturnPct: (v: number) => void
@@ -489,47 +717,93 @@ function applyAdvancedScenario(setters: {
 }
 
 export default function HomePageClient() {
+  const searchParams = useSearchParams()
+  const initialState = useMemo(() => buildCalculatorStateFromParams(searchParams), [searchParams])
+  const lastAppliedQuery = useRef(searchParams.toString())
+
   // Core sliders
-  const [principal, setPrincipal] = useState(SCENARIOS[0].principal)
-  const [annualReturnPct, setAnnualReturnPct] = useState(SCENARIOS[0].annualReturnPct)
-  const [yearsHeld, setYearsHeld] = useState(SCENARIOS[0].yearsHeld)
-  const [inflationPct, setInflationPct] = useState(SCENARIOS[0].inflationPct)
-  const [marginalTaxPct, setMarginalTaxPct] = useState(SCENARIOS[0].marginalTaxPct)
-  const [taxRatePreset, setTaxRatePreset] = useState<TaxRatePresetKey>('top')
-  const [activeScenario, setActiveScenario] = useState<ScenarioKey>('ambition')
-  const [advancedMode, setAdvancedMode] = useState(false)
+  const [principal, setPrincipal] = useState(initialState.principal)
+  const [annualReturnPct, setAnnualReturnPct] = useState(initialState.annualReturnPct)
+  const [yearsHeld, setYearsHeld] = useState(initialState.yearsHeld)
+  const [inflationPct, setInflationPct] = useState(initialState.inflationPct)
+  const [marginalTaxPct, setMarginalTaxPct] = useState(initialState.marginalTaxPct)
+  const [taxRatePreset, setTaxRatePreset] = useState<TaxRatePresetKey>(initialState.taxRatePreset)
+  const [activeScenario, setActiveScenario] = useState<ScenarioKey>(initialState.activeScenario)
+  const [advancedMode, setAdvancedMode] = useState(initialState.advancedMode)
 
   // Date-based grandfathering
-  const [acquisitionDate, setAcquisitionDate] = useState('2020-01-01')
-  const [disposalDate, setDisposalDate] = useState('2030-01-01')
-  const [holdingOver12Months, setHoldingOver12Months] = useState(true)
+  const [acquisitionDate, setAcquisitionDate] = useState(initialState.acquisitionDate)
+  const [disposalDate, setDisposalDate] = useState(initialState.disposalDate)
+  const [holdingOver12Months, setHoldingOver12Months] = useState(initialState.holdingOver12Months)
 
   // Income support exemption (Item 5)
-  const [isIncomeSupport, setIsIncomeSupport] = useState(false)
+  const [isIncomeSupport, setIsIncomeSupport] = useState(initialState.isIncomeSupport)
 
   // Property type (Item 3)
-  const [propertyType, setPropertyType] = useState<PropertyType>('non-residential')
-  const [useDiscountForNewProperty, setUseDiscountForNewProperty] = useState(false)
+  const [propertyType, setPropertyType] = useState<PropertyType>(initialState.propertyType)
+  const [useDiscountForNewProperty, setUseDiscountForNewProperty] = useState(initialState.useDiscountForNewProperty)
 
   // Subdiv 152 (Item 6)
-  const [subDiv152Active, setSubDiv152Active] = useState(false)
-  const [subDiv152MaxNetAssets, setSubDiv152MaxNetAssets] = useState(false)
-  const [subDiv152SmallBizTurnover, setSubDiv152SmallBizTurnover] = useState(false)
-  const [subDiv152FifteenYearExemption, setSubDiv152FifteenYearExemption] = useState(false)
-  const [subDiv152RetirementExemption, setSubDiv152RetirementExemption] = useState(false)
-  const [userAge, setUserAge] = useState(45)
+  const [subDiv152Active, setSubDiv152Active] = useState(initialState.subDiv152Active)
+  const [subDiv152MaxNetAssets, setSubDiv152MaxNetAssets] = useState(initialState.subDiv152MaxNetAssets)
+  const [subDiv152SmallBizTurnover, setSubDiv152SmallBizTurnover] = useState(initialState.subDiv152SmallBizTurnover)
+  const [subDiv152FifteenYearExemption, setSubDiv152FifteenYearExemption] = useState(initialState.subDiv152FifteenYearExemption)
+  const [subDiv152RetirementExemption, setSubDiv152RetirementExemption] = useState(initialState.subDiv152RetirementExemption)
+  const [userAge, setUserAge] = useState(initialState.userAge)
 
   // Subdiv 152 active-asset convenience flag used by advanced scenario presets
-  const [subDiv152ActiveAsset, setSubDiv152ActiveAsset] = useState(false)
+  const [subDiv152ActiveAsset, setSubDiv152ActiveAsset] = useState(initialState.subDiv152ActiveAsset)
 
   // Negative gearing (Item 4)
-  const [ngPropertyDate, setNgPropertyDate] = useState('2026-01-01')
-  const [ngPropertyType, setNgPropertyType] = useState<'established' | 'new'>('established')
-  const [annualRentalIncome, setAnnualRentalIncome] = useState(30000)
-  const [annualDeductibleExpenses, setAnnualDeductibleExpenses] = useState(42000)
+  const [ngPropertyDate, setNgPropertyDate] = useState(initialState.ngPropertyDate)
+  const [ngPropertyType, setNgPropertyType] = useState<'established' | 'new'>(initialState.ngPropertyType)
+  const [annualRentalIncome, setAnnualRentalIncome] = useState(initialState.annualRentalIncome)
+  const [annualDeductibleExpenses, setAnnualDeductibleExpenses] = useState(initialState.annualDeductibleExpenses)
+  const [otherTaxableIncome, setOtherTaxableIncome] = useState(initialState.otherTaxableIncome)
 
   // Manual NG loss override (used by advanced scenario presets)
-  const [annualNegativeGearingLoss, setAnnualNegativeGearingLoss] = useState(0)
+  const [annualNegativeGearingLoss, setAnnualNegativeGearingLoss] = useState(initialState.annualNegativeGearingLoss)
+  const [linkedCaseFileId, setLinkedCaseFileId] = useState<string | null>(initialState.linkedCaseFileId)
+
+  useEffect(() => {
+    const queryKey = searchParams.toString()
+    if (queryKey === lastAppliedQuery.current) return
+    lastAppliedQuery.current = queryKey
+
+    const nextState = buildCalculatorStateFromParams(searchParams)
+    setPrincipal(nextState.principal)
+    setAnnualReturnPct(nextState.annualReturnPct)
+    setYearsHeld(nextState.yearsHeld)
+    setInflationPct(nextState.inflationPct)
+    setMarginalTaxPct(nextState.marginalTaxPct)
+    setTaxRatePreset(nextState.taxRatePreset)
+    setActiveScenario(nextState.activeScenario)
+    setAdvancedMode(nextState.advancedMode)
+    setAcquisitionDate(nextState.acquisitionDate)
+    setDisposalDate(nextState.disposalDate)
+    setHoldingOver12Months(nextState.holdingOver12Months)
+    setIsIncomeSupport(nextState.isIncomeSupport)
+    setPropertyType(nextState.propertyType)
+    setUseDiscountForNewProperty(nextState.useDiscountForNewProperty)
+    setSubDiv152Active(nextState.subDiv152Active)
+    setSubDiv152MaxNetAssets(nextState.subDiv152MaxNetAssets)
+    setSubDiv152SmallBizTurnover(nextState.subDiv152SmallBizTurnover)
+    setSubDiv152FifteenYearExemption(nextState.subDiv152FifteenYearExemption)
+    setSubDiv152RetirementExemption(nextState.subDiv152RetirementExemption)
+    setUserAge(nextState.userAge)
+    setSubDiv152ActiveAsset(nextState.subDiv152ActiveAsset)
+    setNgPropertyDate(nextState.ngPropertyDate)
+    setNgPropertyType(nextState.ngPropertyType)
+    setAnnualRentalIncome(nextState.annualRentalIncome)
+    setAnnualDeductibleExpenses(nextState.annualDeductibleExpenses)
+    setOtherTaxableIncome(nextState.otherTaxableIncome)
+    setAnnualNegativeGearingLoss(nextState.annualNegativeGearingLoss)
+    setLinkedCaseFileId(nextState.linkedCaseFileId)
+  }, [searchParams])
+
+  const linkedCaseUrl = linkedCaseFileId
+    ? `https://factual-au.setiyaputra.me/fact-check/${linkedCaseFileId}`
+    : null
 
   const derived = useMemo(() => {
     const marginalTaxRate = marginalTaxPct / 100
@@ -540,11 +814,18 @@ export default function HomePageClient() {
     const totalHoldingMs = Math.max(dispDate.getTime() - acqDate.getTime(), 1)
     const acqAfterCutoff = acqDate >= CUTOFF_DATE
     const dispBeforeCutoff = dispDate <= CUTOFF_DATE
+    const isPreCgtAsset = acqDate < PRE_CGT_DATE
 
     let preFraction: number
     let postFraction: number
 
-    if (dispBeforeCutoff) {
+    if (isPreCgtAsset && dispBeforeCutoff) {
+      preFraction = 0
+      postFraction = 0
+    } else if (isPreCgtAsset) {
+      preFraction = 0
+      postFraction = Math.min(Math.max((dispDate.getTime() - CUTOFF_DATE.getTime()) / totalHoldingMs, 0), 1)
+    } else if (dispBeforeCutoff) {
       preFraction = 1
       postFraction = 0
     } else if (acqAfterCutoff) {
@@ -581,10 +862,12 @@ export default function HomePageClient() {
     let postCgtPayable: number
     let postMarginalTax: number
     let postMinimumTax: number
+    let postElectionTax: number
     let minTaxFloorBinding = false
 
     // New residential property can elect 50% discount instead
     const useNewPropertyDiscount = propertyType === 'new' && useDiscountForNewProperty
+    postElectionTax = postGain * 0.5 * marginalTaxRate
 
     if (!holdingOver12Months) {
       // Short hold: no discount, full marginal rate on nominal gain
@@ -633,9 +916,10 @@ export default function HomePageClient() {
     const postCgtFinal = applySubdiv152Stack(postCgtPayable)
     const totalCgtPayable = preCgtFinal + postCgtFinal
     const afterTaxWealth = futureValue - totalCgtPayable
+    const alternativePostTax = applySubdiv152Stack(postElectionTax)
 
     // Current law (50% discount if held >12 months)
-    const currentTaxableGain = holdingOver12Months ? nominalGain * 0.5 : nominalGain
+    const currentTaxableGain = isPreCgtAsset ? 0 : holdingOver12Months ? nominalGain * 0.5 : nominalGain
     const currentCgtRaw = currentTaxableGain * marginalTaxRate
     const currentCgtFinal = applySubdiv152Stack(currentCgtRaw)
     const afterTaxCurrent = futureValue - currentCgtFinal
@@ -680,11 +964,22 @@ export default function HomePageClient() {
         ? Math.abs(annualNetRental)
         : 0
 
-    const currentAnnualTaxSaving = effectiveAnnualLoss * marginalTaxRate
+    const offsettableLossCurrent = Math.min(effectiveAnnualLoss, otherTaxableIncome)
+    const currentAnnualTaxSaving = offsettableLossCurrent * marginalTaxRate
     const reformAnnualTaxSaving = ngNewRulesApply ? 0 : currentAnnualTaxSaving
     const annualCarriedForward = ngNewRulesApply && effectiveAnnualLoss > 0 ? effectiveAnnualLoss : 0
     const cumulativeCarriedForward = annualCarriedForward * yearsHeld
     const annualTaxSavingLost = currentAnnualTaxSaving - reformAnnualTaxSaving
+    const currentAnnualCashflow = annualNetRental + currentAnnualTaxSaving
+    const reformAnnualCashflow = annualNetRental + reformAnnualTaxSaving
+    const newPropertyLowerTax =
+      propertyType === 'new' && holdingOver12Months
+        ? alternativePostTax < postCgtFinal
+          ? 'Use 50% discount election produces lower post-2027 tax in this scenario.'
+          : alternativePostTax > postCgtFinal
+            ? 'Indexation + 30% minimum tax produces lower post-2027 tax in this scenario.'
+            : 'Both post-2027 treatments produce the same tax in this scenario.'
+        : ''
 
     return {
       futureValue,
@@ -696,6 +991,7 @@ export default function HomePageClient() {
       postMarginalTax,
       postMinimumTax,
       postCgtPayable,
+      alternativePostTax,
       totalCgtPayable,
       currentCgtFinal,
       noDiscountTax,
@@ -709,13 +1005,18 @@ export default function HomePageClient() {
       minTaxFloorBinding,
       acqAfterCutoff,
       dispBeforeCutoff,
+      isPreCgtAsset,
       ngAcqBeforeCutoff,
       ngNewRulesApply,
+      annualNetRental,
       currentAnnualTaxSaving,
       reformAnnualTaxSaving,
+      currentAnnualCashflow,
+      reformAnnualCashflow,
       cumulativeCarriedForward,
       annualTaxSavingLost,
       effectiveAnnualLoss,
+      newPropertyLowerTax,
     }
   }, [
     advancedMode,
@@ -731,6 +1032,7 @@ export default function HomePageClient() {
     marginalTaxPct,
     ngPropertyDate,
     ngPropertyType,
+    otherTaxableIncome,
     principal,
     propertyType,
     subDiv152Active,
@@ -748,16 +1050,6 @@ export default function HomePageClient() {
     <main className="min-h-screen bg-bg">
       <div className="mx-auto max-w-7xl px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
         <header className="mb-6 card-brutal card-main p-4 sm:p-6">
-          {/* Post-Budget 2026 banner */}
-          <div className="mb-4 card-brutal bg-black px-4 py-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs sm:text-sm font-black uppercase tracking-wide text-white">
-              Updated post-Budget 2026 — reflects legislated policy per BP1 Statement 4 and BP2 pp.21–22
-            </p>
-            <span className="badge-brutal bg-white text-black text-[10px] sm:text-xs">
-              Last updated May 2026
-            </span>
-          </div>
-
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-black">
@@ -774,6 +1066,23 @@ export default function HomePageClient() {
             <ThemeToggle />
           </div>
 
+          <div className="mt-4 flex flex-wrap gap-3">
+            <a
+              href="https://factual-au.setiyaputra.me/dashboard"
+              className="btn-brutal btn-brutal-neutral text-xs sm:text-sm"
+            >
+              Open Factual AU dashboard
+            </a>
+            {linkedCaseUrl ? (
+              <a
+                href={linkedCaseUrl}
+                className="btn-brutal btn-brutal-neutral text-xs sm:text-sm"
+              >
+                Back to linked case file
+              </a>
+            ) : null}
+          </div>
+
           <div className="mt-4 flex flex-wrap gap-2">
             <span className="badge-brutal bg-white text-[10px] sm:text-xs">Australian sources only</span>
             <span className="badge-brutal bg-white text-[10px] sm:text-xs">Interactive scenarios</span>
@@ -781,6 +1090,30 @@ export default function HomePageClient() {
             <span className="badge-brutal bg-white text-[10px] sm:text-xs">Legislated 2027 regime</span>
           </div>
         </header>
+
+        {linkedCaseUrl ? (
+          <section className="mb-6">
+            <div className="card-brutal card-purple p-4 sm:p-5">
+              <p className="text-xs sm:text-sm font-black uppercase tracking-wide text-black">
+                Loaded from Factual AU
+              </p>
+              <p className="mt-2 text-xs sm:text-sm text-black/80">
+                This calculator state was prefilled from the linked case file so you can stress-test the claim with the same scenario assumptions.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-3">
+                <a href={linkedCaseUrl} className="btn-brutal btn-brutal-neutral text-xs sm:text-sm">
+                  View the case file
+                </a>
+                <a
+                  href="https://factual-au.setiyaputra.me/dashboard"
+                  className="btn-brutal btn-brutal-neutral text-xs sm:text-sm"
+                >
+                  Browse all case files
+                </a>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="mb-6">
           <div className="card-brutal p-4 sm:p-6">
@@ -924,6 +1257,10 @@ export default function HomePageClient() {
               <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide text-black">
                 Outcome Snapshot
               </h2>
+              <p className="mt-1 text-xs sm:text-sm text-black/80">
+                The reform treatment shown here is for individuals, trusts and partnerships. Companies are not
+                modelled in this calculator.
+              </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <MetricCard label="Portfolio value" value={formatCurrency(derived.futureValue)} tone="main" />
                 <MetricCard label="Nominal capital gain" value={formatCurrency(derived.nominalGain)} tone="success" />
@@ -1005,9 +1342,22 @@ export default function HomePageClient() {
                 <span className="badge-brutal bg-bg">Post-2027: {(derived.postFraction * 100).toFixed(0)}%</span>
                 <span className="badge-brutal bg-bg">CPI multiplier: {derived.postCpiMult.toFixed(3)}×</span>
               </div>
+              <p className="mt-2 text-[11px] sm:text-xs text-foreground-muted">
+                CPI multiplier is an all-groups ABS CPI approximation for this build. Quarterly refreshes and any legislation-specific valuation method should be checked against the final ATO guidance.
+              </p>
               {derived.dispBeforeCutoff && (
                 <p className="mt-2 text-[11px] sm:text-xs font-medium text-foreground-muted">
                   Entirely under existing 50% CGT discount rules (disposal before 1 July 2027).
+                </p>
+              )}
+              {derived.isPreCgtAsset && derived.dispBeforeCutoff && (
+                <p className="mt-2 text-[11px] sm:text-xs font-medium text-foreground-muted">
+                  Pre-1985 asset, exempt for pre-2027 gains.
+                </p>
+              )}
+              {derived.isPreCgtAsset && !derived.dispBeforeCutoff && (
+                <p className="mt-2 text-[11px] sm:text-xs font-medium text-foreground-muted">
+                  Pre-1985 asset: pre-2027 gain treated as exempt. Only the post-1 July 2027 portion is modelled under the new regime.
                 </p>
               )}
               {derived.acqAfterCutoff && (
@@ -1089,6 +1439,11 @@ export default function HomePageClient() {
                     {propertyType === 'new' && useDiscountForNewProperty && (
                       <p className="mt-2 text-[11px] sm:text-xs text-foreground-muted">
                         Election applied: using 50% discount on post-2027 portion rather than indexation + 30% min tax.
+                      </p>
+                    )}
+                    {propertyType === 'new' && derived.newPropertyLowerTax && (
+                      <p className="mt-2 text-[11px] sm:text-xs font-medium text-foreground-muted">
+                        {derived.newPropertyLowerTax}
                       </p>
                     )}
                   </div>
@@ -1234,6 +1589,9 @@ export default function HomePageClient() {
                 <p className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-foreground-muted">
                   Post-2027 portion breakdown
                 </p>
+                <p className="mt-2 text-[11px] sm:text-xs text-foreground-muted">
+                  The 30% minimum tax is a floor, not a flat rate: the calculator compares marginal tax on the indexed gain with 30% of the nominal gain and uses the higher amount.
+                </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <MetricCard label="Marginal tax on indexed gain" value={formatCompactCurrency(derived.postMarginalTax)} tone="main" />
                   <MetricCard label="30% minimum tax on nominal gain" value={formatCompactCurrency(derived.postMinimumTax)} tone="warning" />
@@ -1342,9 +1700,28 @@ export default function HomePageClient() {
                 step={1000}
                 format={formatCurrency}
               />
+              <InputCard
+                label="Other taxable income"
+                value={otherTaxableIncome}
+                setValue={setOtherTaxableIncome}
+                min={0}
+                max={500000}
+                step={1000}
+                format={formatCurrency}
+              />
             </div>
 
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                label="Current annual cashflow"
+                value={formatCompactCurrency(derived.currentAnnualCashflow)}
+                tone="success"
+              />
+              <MetricCard
+                label="Reform annual cashflow"
+                value={formatCompactCurrency(derived.reformAnnualCashflow)}
+                tone={derived.ngNewRulesApply ? 'warning' : 'main'}
+              />
               <MetricCard
                 label="Current annual tax saving"
                 value={formatCompactCurrency(derived.currentAnnualTaxSaving)}
@@ -1366,6 +1743,9 @@ export default function HomePageClient() {
                 tone="main"
               />
             </div>
+            <p className="mt-3 text-[11px] sm:text-xs text-foreground-muted">
+              Other taxable income caps the amount of loss that can be offset immediately under current rules in this simplified model. Excess losses remain an approximation here.
+            </p>
 
             {derived.ngNewRulesApply && derived.effectiveAnnualLoss > 0 && (
               <div className="mt-4 card-brutal card-warning p-4">
@@ -1376,55 +1756,6 @@ export default function HomePageClient() {
                 </p>
               </div>
             )}
-          </div>
-        </section>
-
-        <section className="mb-6">
-          <div className="card-brutal p-4 sm:p-6">
-            <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide">
-              Pressure-Test The Public Claims
-            </h2>
-            <p className="mt-1 max-w-4xl text-xs sm:text-sm text-foreground-muted">
-              These are the main places where the claim and the legislated policy design need to be read carefully.
-            </p>
-
-            <div className="mt-5 grid gap-4 xl:grid-cols-2">
-              {CLAIM_CHECKS.map((claim) => (
-                <div key={claim.title} className="card-brutal bg-white p-4 sm:p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="text-sm sm:text-base font-black">{claim.title}</p>
-                    <span className={`badge-brutal text-[10px] sm:text-xs ${
-                      claim.tone === 'success'
-                        ? 'badge-success'
-                        : claim.tone === 'warning'
-                          ? 'badge-warning'
-                          : 'badge-danger'
-                    }`}>
-                      {claim.verdict}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-xs sm:text-sm text-foreground-muted">{claim.body}</p>
-                  <ul className="mt-4 space-y-2 text-xs sm:text-sm">
-                    {claim.bullets.map((bullet) => (
-                      <li key={bullet}>• {bullet}</li>
-                    ))}
-                  </ul>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {claim.sources.map((source) => (
-                      <a
-                        key={`${claim.title}-${source.label}`}
-                        href={source.href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="badge-brutal bg-bg-alt text-[10px] sm:text-xs brutal-hover"
-                      >
-                        {source.label}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </section>
 
@@ -1478,112 +1809,6 @@ export default function HomePageClient() {
                   </span>
                 </div>
               </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mb-6">
-          <div className="card-brutal card-purple p-4 sm:p-6">
-            <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide text-black">
-              Which Claims Matter Most?
-            </h2>
-            <div className="mt-3 card-brutal card-warning p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="badge-brutal badge-danger text-[10px] sm:text-xs">Claim-check lens</span>
-              </div>
-              <p className="mt-3 text-xs sm:text-sm font-medium text-black">
-                This matrix separates the claims that are already well supported by official data from the ones
-                that are important but still need stronger evidence.
-              </p>
-            </div>
-
-            <div className="mt-5 overflow-x-auto">
-              <div className="min-w-[760px]">
-                <div className="mb-2 grid grid-cols-[140px_1fr_1fr] gap-3">
-                  <div />
-                  <div className="card-brutal card-danger p-2 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
-                    Weak Evidence
-                  </div>
-                  <div className="card-brutal card-success p-2 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
-                    Strong Evidence
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-[140px_1fr_1fr] gap-3">
-                  <div className="flex items-center justify-center card-brutal card-success p-3 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
-                    High Policy Importance
-                  </div>
-
-                  <div className="card-brutal card-warning p-4">
-                    <p className="text-sm font-black">Important but unresolved</p>
-                    <ul className="mt-3 space-y-2 text-xs sm:text-sm">
-                      <li>Founder exits and startup treatment under the new regime.</li>
-                      <li>Small business and farm transition design.</li>
-                      <li>Whether capital would shift offshore or into low-productivity assets.</li>
-                    </ul>
-                  </div>
-
-                  <div className="card-brutal card-success p-4">
-                    <p className="text-sm font-black">Act on this evidence</p>
-                    <ul className="mt-3 space-y-2 text-xs sm:text-sm">
-                      <li>Top 10% of income earners receive 82% of the CGT discount benefit.</li>
-                      <li>Top 1% alone receives 59%.</li>
-                      <li>Ages 18–34 receive 4%, while ages 60+ receive 52%.</li>
-                    </ul>
-                  </div>
-
-                  <div className="flex items-center justify-center card-brutal card-danger p-3 text-center text-[11px] sm:text-xs font-black uppercase tracking-wide">
-                    Lower Policy Importance
-                  </div>
-
-                  <div className="card-brutal card-danger p-4">
-                    <p className="text-sm font-black">Rhetorical overreach</p>
-                    <ul className="mt-3 space-y-2 text-xs sm:text-sm">
-                      <li>Sweeping claims that young Australians are the main direct beneficiaries of the current discount.</li>
-                      <li>Confident predictions about investor behaviour without behavioural evidence.</li>
-                    </ul>
-                  </div>
-
-                  <div className="card-brutal card-main p-4">
-                    <p className="text-sm font-black">Interesting, but secondary</p>
-                    <ul className="mt-3 space-y-2 text-xs sm:text-sm">
-                      <li>Asset-class splits across property, shares, trusts and other assets.</li>
-                      <li>Recipient counts by narrow age bucket.</li>
-                      <li>Average effect per recipient, where distributional concentration already tells the main story.</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="mb-6">
-          <div className="card-brutal p-4 sm:p-6">
-            <h2 className="text-lg sm:text-2xl font-black uppercase tracking-wide">
-              Government Stats Panel
-            </h2>
-            <p className="mt-1 text-xs sm:text-sm text-foreground-muted">
-              These are the strongest source-backed anchor stats for the page.
-            </p>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {SOURCE_CARDS.map((card) => (
-                <a
-                  key={card.label}
-                  href={card.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="card-brutal bg-white p-4 brutal-hover"
-                >
-                  <p className="text-[11px] sm:text-xs font-black uppercase tracking-wide text-foreground-muted">
-                    {card.label}
-                  </p>
-                  <p className="mt-2 text-2xl sm:text-3xl font-extrabold">{card.stat}</p>
-                  <p className="mt-2 text-xs sm:text-sm text-foreground-muted">{card.caption}</p>
-                  <span className="mt-3 inline-flex badge-brutal text-[10px] sm:text-xs">{card.note}</span>
-                </a>
-              ))}
             </div>
           </div>
         </section>
@@ -1715,6 +1940,24 @@ export default function HomePageClient() {
               <UpdateRow label="CGT claim boundaries updated" detail="Updated claim-check section with Budget Paper references. Removed pre-Budget framing." />
               <UpdateRow label="Policy axis colors and social preview" detail="Refreshed the 2×2 matrix colour scheme and the Open Graph preview image." />
               <UpdateRow label="Initial release" detail="Launched with scenario presets, distributional fact section, claim-pressure-test section, and the 2×2 evidence matrix." />
+            </div>
+          </div>
+        </section>
+
+        <section className="mb-6">
+          <div className="card-brutal bg-black px-4 py-4 sm:px-6 sm:py-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs sm:text-sm font-black uppercase tracking-wide text-white">
+                  Updated post-Budget 2026 — reflects legislated policy per BP1 Statement 4 and BP2 pp.21–22
+                </p>
+                <p className="mt-2 text-[11px] sm:text-xs text-white/80">
+                  This note sits at the bottom so the main calculator loads first, while still marking the current legislative basis for the scenarios and claim-check sections.
+                </p>
+              </div>
+              <span className="badge-brutal bg-white text-black text-[10px] sm:text-xs">
+                Last updated May 2026
+              </span>
             </div>
           </div>
         </section>
