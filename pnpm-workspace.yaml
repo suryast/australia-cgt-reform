@@ -1,0 +1,11 @@
+overrides:
+  esbuild: ^0.28.1
+  postcss: ^8.5.15
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - workerd
+allowBuilds:
+  esbuild: true
+  sharp: true
+  workerd: true
