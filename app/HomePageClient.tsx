@@ -1955,6 +1955,7 @@ export default function HomePageClient() {
               Recent changes to this tool.
             </p>
             <div className="mt-4 space-y-3">
+              <UpdateRow label="June 2026 carve-out consultation" detail="Added ABC-reported small-business/startup CGT carve-out consultation: proposed active-asset threshold lift from $2m to $10m turnover, plus founder, early-investor, and ESS employee carve-out design still under consultation." />
               <UpdateRow label="Budget 2026 update" detail="Implemented legislated 1 July 2027 CGT regime: date-based grandfathering, indexation + 30% min tax, Subdiv 152 stack, NG section, worker tax cuts context, VC incentive table, income support exemption." />
               <UpdateRow label="Advanced scenario cards" detail="Updated card-based UI for founder relief, straddle-the-cutoff, and property-style advanced scenario presets with date inputs." />
               <UpdateRow label="Advanced CGT scenario controls" detail="Replaced grandfatheredGainPct slider with acquisition/disposal date inputs. Added property type, Subdiv 152, income support, and NG section." />
@@ -1970,14 +1971,14 @@ export default function HomePageClient() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-xs sm:text-sm font-black uppercase tracking-wide text-white">
-                  Updated post-Budget 2026 — reflects legislated policy per BP1 Statement 4 and BP2 pp.21–22
+                  Updated June 2026 — reflects Budget 2026 law plus later small-business/startup CGT carve-out consultation
                 </p>
                 <p className="mt-2 text-[11px] sm:text-xs text-white/80">
                   This note sits at the bottom so the main calculator loads first, while still marking the current legislative basis for the scenarios and claim-check sections.
                 </p>
               </div>
               <span className="badge-brutal bg-white text-black text-[10px] sm:text-xs">
-                Last updated May 2026
+                Last updated June 2026
               </span>
             </div>
           </div>
