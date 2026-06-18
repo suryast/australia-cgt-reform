@@ -279,6 +279,20 @@ const SOURCE_CARDS = [
     href: 'https://www.abs.gov.au/statistics/economy/business-indicators/counts-australian-businesses-including-entries-and-exits/latest-release',
     note: 'ABS latest release',
   },
+  {
+    label: 'Small-business carve-out',
+    stat: '$10m',
+    caption: 'Proposed turnover ceiling for the 50% active asset discount, up from $2m.',
+    href: 'https://www.abc.net.au/news/2026-06-18/capital-gains-tax-concessions-for-startups-and-small-business/106812782',
+    note: 'ABC News, 18 Jun 2026',
+  },
+  {
+    label: 'Startup carve-out',
+    stat: '50%',
+    caption: 'Initial proposed choice for qualifying new, innovative businesses: a 50% discount or inflation discount.',
+    href: 'https://www.abc.net.au/news/2026-06-18/capital-gains-tax-concessions-for-startups-and-small-business/106812782',
+    note: 'ABC News, 18 Jun 2026',
+  },
 ]
 
 const REFERENCE_LINKS = [
@@ -313,6 +327,11 @@ const REFERENCE_LINKS = [
     detail: 'Includes the age-by-benefit split behind the 18–34 and 60+ comparisons used on this page.',
   },
   {
+    title: 'ABC News: capital gains carve-outs for small businesses and startups',
+    href: 'https://www.abc.net.au/news/2026-06-18/capital-gains-tax-concessions-for-startups-and-small-business/106812782',
+    detail: '18 Jun 2026 update: active asset turnover threshold proposed to rise to $10m; startup founders, early investors and ESS employees included in a further consultation carve-out.',
+  },
+  {
     title: 'ATO: Capital gains tax statistics 2022–23',
     href: 'https://www.ato.gov.au/about-ato/research-and-statistics/in-detail/taxation-statistics/taxation-statistics-2022-23/statistics/capital-gains-tax-statistics',
     detail: 'Entity-type CGT statistics and estimated tax on net capital gains.',
@@ -337,17 +356,18 @@ const REFERENCE_LINKS = [
 const CLAIM_CHECKS = [
   {
     title: 'Founder exit claim',
-    verdict: 'Subdiv 152 relief now modelled — check advanced mode',
+    verdict: 'Relief widened on 18 Jun — still final-design sensitive',
     tone: 'warning' as const,
-    body: 'A "$225k worse off on a $1m business sale" result broadly matches a founder on the top marginal rate with no Subdivision 152 relief. The calculator now models the simplified Subdiv 152 stack in advanced mode. The government has indicated consultation on early-stage business treatment is underway.',
+    body: 'A "$225k worse off on a $1m business sale" result broadly matches a founder on the top marginal rate with no Subdivision 152 relief. The 18 Jun update says the 50% active asset discount threshold is proposed to expand from $2m to $10m turnover, and startup founders, early investors and ESS employees are now in scope for a separate carve-out consultation.',
     bullets: [
-      'Toggle "Asset qualifies as active business asset (Subdiv 152)" in advanced mode to see the Subdivision 152 scenario.',
+      'Toggle "Asset qualifies as active business asset (Subdiv 152)" in advanced mode to see the existing Subdivision 152 scenario.',
       'With the 50% active asset reduction and $500k retirement exemption, the tax burden drops significantly.',
-      'ESS and early-stage startup treatment remains under consultation and is not yet modelled.',
+      'Do not treat the startup carve-out as legislated yet: ABC reports the initial design is a choice between a 50% discount and an inflation discount for qualifying "new, innovative" businesses.',
     ],
     sources: [
       { label: 'ATO small business CGT concessions', href: 'https://www.ato.gov.au/law/view/view.htm?docid=SAV/CGTCONCESSIONS/00001' },
       { label: 'Budget Paper 2, p.21–22', href: 'https://budget.gov.au/content/bp2/download/bp2-2026-27.pdf' },
+      { label: 'ABC News, 18 Jun 2026', href: 'https://www.abc.net.au/news/2026-06-18/capital-gains-tax-concessions-for-startups-and-small-business/106812782' },
     ],
   },
   {
@@ -412,16 +432,17 @@ const CLAIM_CHECKS = [
   },
   {
     title: 'ESS / startup employee treatment',
-    verdict: 'Under consultation — not yet resolved',
-    tone: 'danger' as const,
-    body: 'The treatment of Employee Share Scheme (ESS) shares and early-stage employee equity under the new CGT regime is not yet finalised. Consultation is underway.',
+    verdict: 'Acknowledged in carve-out design — mechanics still pending',
+    tone: 'warning' as const,
+    body: 'Employee Share Scheme shares and early-stage employee equity are no longer just an open complaint: ABC reports that employees granted shares as remuneration will be included in the startup carve-out consultation. The calculator still does not model it because eligibility and mechanics are not final.',
     bullets: [
-      'This is a legitimate concern for startup employees who receive equity as part of compensation.',
-      'The government has indicated it is aware of the issue and consultation is ongoing.',
-      'This calculator does not model ESS carve-outs as the design is not finalised.',
+      'Initial proposal: qualifying "new, innovative" businesses choose between a 50% discount and an inflation discount.',
+      'Founders, early-stage investors and employees with share-based remuneration are included in the consultation frame.',
+      'Treat calculator results for ESS-heavy cases as a no-carve-out stress test until draft legislation lands.',
     ],
     sources: [
       { label: 'Budget Paper 2, p.21 — consultation noted', href: 'https://budget.gov.au/content/bp2/download/bp2-2026-27.pdf' },
+      { label: 'ABC News, 18 Jun 2026', href: 'https://www.abc.net.au/news/2026-06-18/capital-gains-tax-concessions-for-startups-and-small-business/106812782' },
     ],
   },
 ]

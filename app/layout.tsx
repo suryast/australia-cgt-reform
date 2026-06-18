@@ -17,14 +17,14 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://australia-cgt-reform-calculator.setiyaputra.me"),
   title: "CGT Compounding Calculator",
   description:
-    "A one-page interactive comparison of Australia's current 50% CGT discount and an illustrative inflation-indexation alternative.",
+    "Interactive comparison of Australia's current 50% CGT discount, the proposed indexation alternative, and the 18 Jun 2026 small-business/startup carve-out update.",
   icons: {
     icon: "/og-preview.svg",
   },
   openGraph: {
     title: "CGT Compounding Calculator",
     description:
-      "Stress-test long-term capital gains outcomes under different tax treatments.",
+      "Stress-test long-term capital gains outcomes, including the latest small-business and startup carve-out signals.",
     type: "website",
     url: "https://australia-cgt-reform-calculator.setiyaputra.me",
     images: [
@@ -40,7 +40,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "CGT Compounding Calculator",
     description:
-      "Stress-test long-term capital gains outcomes under different tax treatments.",
+      "Stress-test long-term capital gains outcomes, including the latest small-business and startup carve-out signals.",
     images: ["/og-preview.png"],
   },
 };
