@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Footer } from '@/components/Footer'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import scenarioManifest from '../../shared/factual-au-scenario-manifest.json'
+import scenarioManifest from '../shared/factual-au-scenario-manifest.json'
 
 type ScenarioKey = 'ambition' | 'balanced' | 'moderate'
 type PropertyType = 'established' | 'new' | 'non-residential'
