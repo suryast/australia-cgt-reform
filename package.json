@@ -10,7 +10,7 @@
     "pages:deploy": "wrangler pages deploy out --project-name=cgt-compound-calculator"
   },
   "dependencies": {
-    "next": "16.3.4",
+    "next": "16.3.8",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },
@@ -21,6 +21,6 @@
     "@types/react-dom": "^19.2.5",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3",
-    "wrangler": "^4.128.0"
+    "wrangler": "^4.146.0"
   }
 }
